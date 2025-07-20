@@ -8,6 +8,11 @@
 		// Update the 'dockerFile' property if you aren't using the standard 'Dockerfile' filename.
 		"dockerfile": "../Dockerfile"
 	},
+	// Specify .env file to set environment variables for the container."
+	"runArgs": [
+		"--env-file",
+		"../.env"
+	],
 	"workspaceFolder": "/usr/src/app",
 	"workspaceMount": "source=${localWorkspaceFolder},target=/usr/src/app,type=bind,consistency=cached",
 	"customizations": {
