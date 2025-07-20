@@ -14,6 +14,8 @@ import (
 )
 
 func main() {
+	fmt.Println(os.Getenv("REGISTRY_USERNAME"))
+	fmt.Println(os.Getenv("REGISTRY_PASSWORD"))
 	fmt.Println(andrew.Thing())
 
 	registry := "ghcr.io"
