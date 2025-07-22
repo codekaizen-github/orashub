@@ -33,39 +33,6 @@ func NewClient(registry string, username string, password string) *Client {
 	}
 }
 
-func (c *Client) GetDescription(repository string, tagName string) (*v1.Descriptor, error) {
-	src, err := c.GetRepository(repository)
-	if err != nil {
-		return nil, err // Handle error
-	}
-	dst := memory.New()
-	ctx := context.Background()
-	desc, err := oras.Copy(ctx, src, tagName, dst, tagName, oras.DefaultCopyOptions)
-	if err != nil {
-		return nil, err // Handle error
-	}
-	// Placeholder for getting annotations
-	// In a real application, you would implement logic to fetch annotations from the registry.
-
-	return &desc, nil
-}
-
-func (c *Client) GetAnnotations(repository string, tagName string) (map[string]string, error) {
-	src, err := c.GetRepository(repository)
-	if err != nil {
-		return nil, err // Handle error
-	}
-	dst := memory.New()
-	ctx := context.Background()
-	desc, err := oras.Copy(ctx, src, tagName, dst, tagName, oras.DefaultCopyOptions)
-	if err != nil {
-		return nil, err // Handle error
-	}
-	// Placeholder for getting annotations
-	// In a real application, you would implement logic to fetch annotations from the registry.
-	return desc.Annotations, nil
-}
-
 func (c *Client) GetRepository(repository string) (*remote.Repository, error) {
 	repo, err := remote.NewRepository(fmt.Sprintf("%s/%s", c.Registry, repository))
 	if err != nil {
@@ -74,8 +41,7 @@ func (c *Client) GetRepository(repository string) (*remote.Repository, error) {
 	repo.Client = c.AuthClient
 	return repo, nil
 }
-
-func (c *Client) GetManifest(repository string, tagName string) ([]byte, error) {
+func (c *Client) GetDescriptor(repository string, tagName string) (*v1.Descriptor, error) {
 	src, err := c.GetRepository(repository)
 	if err != nil {
 		return nil, err // Handle error
@@ -87,7 +53,17 @@ func (c *Client) GetManifest(repository string, tagName string) ([]byte, error) 
 	if err != nil {
 		return nil, err // Handle error
 	}
-	content, err := dst.Fetch(ctx, desc)
+	return &desc, nil
+}
+func (c *Client) GetManifest(repository string, tagName string) ([]byte, error) {
+	desc, err := c.GetDescriptor(repository, tagName)
+	if err != nil {
+		return nil, err // Handle error
+	}
+	dst := memory.New()
+	ctx := context.Background()
+
+	content, err := dst.Fetch(ctx, *desc)
 	if err != nil {
 		return nil, err // Handle error
 	}
@@ -123,4 +99,11 @@ func (c *Client) GetManifest(repository string, tagName string) ([]byte, error) 
 		    }
 		}
 	*/
+}
+func (c *Client) GetAnnotations(repository string, tagName string) (map[string]string, error) {
+	desc, err := c.GetDescriptor(repository, tagName)
+	if err != nil {
+		return nil, err // Handle error
+	}
+	return desc.Annotations, nil
 }
