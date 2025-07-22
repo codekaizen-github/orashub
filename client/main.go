@@ -5,13 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
-	"oras.land/oras-go/v2/content/file"
 	"oras.land/oras-go/v2/content/memory"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
@@ -145,30 +142,9 @@ func (c *Client) GetFirstLayerReader(repository, tagName string) (io.ReadCloser,
 		}
 	}
 
-	// Create a temporary file to store the layer
-	tmpFile, err := os.CreateTemp("", "layer-*.zip")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file: %v", err)
-	}
-
-	// Create a file store pointing to the directory containing our temp file
-	tmpDir := filepath.Dir(tmpFile.Name())
-	tmpFileName := filepath.Base(tmpFile.Name())
-
-	// Close and remove the temp file - we'll let the file store manage it
-	tmpFile.Close()
-	os.Remove(tmpFile.Name())
-
-	// Create a file store
-	fs, err := file.New(tmpDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create file store: %v", err)
-	}
-
 	// Connect to the remote repository
 	repo, err := c.GetRepository(repository)
 	if err != nil {
-		fs.Close()
 		return nil, err
 	}
 
@@ -177,62 +153,34 @@ func (c *Client) GetFirstLayerReader(repository, tagName string) (io.ReadCloser,
 		MediaType: "application/zip",
 		Digest:    digest.Digest(layerDigest),
 		Size:      manifest.Layers[0].Size,
-		Annotations: map[string]string{
-			"org.opencontainers.image.title": tmpFileName,
-		},
 	}
 
-	// Now manually fetch and save the blob
-	fmt.Println("Pulling blob to file:", tmpFile.Name())
-
-	// Get the target artifact - we only want the specific layer
-	blob, err := repo.Fetch(c.Context, desc)
+	// Fetch the blob directly - this returns an io.ReadCloser we can stream
+	fmt.Println("Streaming blob with size:", desc.Size)
+	content, err := repo.Fetch(c.Context, desc)
 	if err != nil {
-		fs.Close()
 		return nil, fmt.Errorf("failed to fetch blob: %v", err)
 	}
 
-	// Save the blob to our temp file
-	err = fs.Push(c.Context, desc, blob)
-	if err != nil {
-		blob.Close()
-		fs.Close()
-		return nil, fmt.Errorf("failed to save blob: %v", err)
-	}
-	blob.Close()
-
-	// Now open the saved file for reading
-	localFile, err := os.Open(filepath.Join(tmpDir, tmpFileName))
-	if err != nil {
-		fs.Close()
-		return nil, fmt.Errorf("failed to open saved file: %v", err)
-	}
-
-	// Return a ReadCloser that also closes the file store when done
-	return &readCloserWithCleanup{
-		ReadCloser: localFile,
-		cleanup: func() {
-			fs.Close()
-			os.Remove(filepath.Join(tmpDir, tmpFileName))
-		},
-		filename: filename, // Store the original filename
+	// Wrap the content in our custom ReadCloser to track the filename
+	return &streamReadCloser{
+		ReadCloser: content,
+		filename:   filename,
+		size:       desc.Size,
 	}, nil
 }
 
-// readCloserWithCleanup wraps an io.ReadCloser and performs additional cleanup when closed
-type readCloserWithCleanup struct {
+// streamReadCloser wraps an io.ReadCloser and adds filename and size information
+type streamReadCloser struct {
 	io.ReadCloser
-	cleanup  func()
 	filename string
+	size     int64
 }
 
-func (r *readCloserWithCleanup) Close() error {
-	err := r.ReadCloser.Close()
-	r.cleanup()
-	return err
-}
-
-// GetFilename returns the original filename
-func (r *readCloserWithCleanup) GetFilename() string {
+func (r *streamReadCloser) GetFilename() string {
 	return r.filename
+}
+
+func (r *streamReadCloser) GetSize() int64 {
+	return r.size
 }

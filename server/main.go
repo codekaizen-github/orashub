@@ -134,6 +134,12 @@ func InitializeRoutes(client ClientInterface) *http.ServeMux {
 		w.Header().Set("Content-Type", "application/octet-stream")
 		// Set Content-Disposition header to make the browser download with the correct filename
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+
+		// Try to set Content-Length if we can get it from the underlying ReadCloser
+		if sizer, ok := content.(interface{ GetSize() int64 }); ok {
+			w.Header().Set("Content-Length", fmt.Sprintf("%d", sizer.GetSize()))
+		}
+
 		w.WriteHeader(http.StatusOK) // Set status code to 200 OK
 		// Write the content to the response
 		if _, err := io.Copy(w, content); err != nil {
