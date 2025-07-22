@@ -85,7 +85,7 @@ func InitializeRoutes(client ClientInterface) *http.ServeMux {
 			return
 		}
 	})
-	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}/download-first-layer", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}/download", func(w http.ResponseWriter, r *http.Request) {
 		namespace := r.PathValue("namespace")
 		repository := r.PathValue("repository")
 		tag := r.PathValue("tag")
