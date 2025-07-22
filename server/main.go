@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/codekaizen-github/wordpress-plugin-registry-oras/client"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -90,65 +91,35 @@ func InitializeRoutes(client ClientInterface) *http.ServeMux {
 		tag := r.PathValue("tag")
 		namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
 
-		// First, get the manifest to extract the filename from annotations
-		manifestBytes, err := client.GetManifest(namespacedRepository, tag)
-		if err != nil {
-			log.Printf("Error getting manifest for %s/%s:%s: %v", namespace, repository, tag, err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		// Parse the manifest to get the filename
-		var manifest struct {
-			Layers []struct {
-				Annotations map[string]string `json:"annotations"`
-			} `json:"layers"`
-		}
-		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-			log.Printf("Error parsing manifest: %v", err)
-		}
-
-		// Default filename
-		filename := "plugin.zip"
-
-		// Try to get a better filename from the manifest
-		if len(manifest.Layers) > 0 && manifest.Layers[0].Annotations != nil {
-			if title, ok := manifest.Layers[0].Annotations["org.opencontainers.image.title"]; ok && title != "" {
-				filename = title
-			}
-		}
-
-		// Now get the layer content
-		content, err := client.GetFirstLayerReader(namespacedRepository, tag)
+		// Get the layer info which includes all metadata and the reader
+		layerInfo, err := client.GetFirstLayerReader(namespacedRepository, tag)
 		if err != nil {
 			log.Printf("Error getting first layer reader for %s/%s:%s: %v", namespace, repository, tag, err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if content == nil {
+		if layerInfo == nil {
 			log.Printf("No content found for %s/%s:%s", namespace, repository, tag)
 			http.Error(w, "no content found for the first layer", http.StatusNotFound)
 			return
 		}
-		// Set the content type to application/octet-stream for binary data
-		w.Header().Set("Content-Type", "application/octet-stream")
-		// Set Content-Disposition header to make the browser download with the correct filename
-		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 
-		// Try to set Content-Length if we can get it from the underlying ReadCloser
-		if sizer, ok := content.(interface{ GetSize() int64 }); ok {
-			w.Header().Set("Content-Length", fmt.Sprintf("%d", sizer.GetSize()))
-		}
+		// Set the content type from the layer's media type
+		w.Header().Set("Content-Type", layerInfo.MediaType)
+		// Set Content-Disposition header to make the browser download with the correct filename
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, layerInfo.Filename))
+		// Set Content-Length header for better download handling
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", layerInfo.Size))
 
 		w.WriteHeader(http.StatusOK) // Set status code to 200 OK
 		// Write the content to the response
-		if _, err := io.Copy(w, content); err != nil {
+		if _, err := io.Copy(w, layerInfo); err != nil {
 			log.Printf("Error copying content to response: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		// Close the content reader
-		if err := content.Close(); err != nil {
+		if err := layerInfo.Close(); err != nil {
 			log.Printf("Error closing content reader: %v", err)
 		}
 	})
@@ -160,5 +131,5 @@ type ClientInterface interface {
 	GetDescriptor(repository string, tagName string) (*v1.Descriptor, error)
 	GetManifest(repository string, tagName string) ([]byte, error)
 	GetAnnotations(repository string, tagName string) (map[string]string, error)
-	GetFirstLayerReader(repository, tagName string) (io.ReadCloser, error)
+	GetFirstLayerReader(repository, tagName string) (*client.LayerInfo, error)
 }

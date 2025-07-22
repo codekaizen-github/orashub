@@ -15,6 +15,24 @@ import (
 	"oras.land/oras-go/v2/registry/remote/retry"
 )
 
+// LayerInfo contains metadata about a layer
+type LayerInfo struct {
+	Reader    io.ReadCloser
+	Filename  string
+	MediaType string
+	Size      int64
+}
+
+// Close closes the underlying reader
+func (l *LayerInfo) Close() error {
+	return l.Reader.Close()
+}
+
+// Read implements io.Reader for the LayerInfo struct
+func (l *LayerInfo) Read(p []byte) (n int, err error) {
+	return l.Reader.Read(p)
+}
+
 type Client struct {
 	AuthClient  *auth.Client
 	Registry    string
@@ -111,7 +129,7 @@ func (c *Client) GetAnnotations(repository string, tagName string) (map[string]s
 	return desc.Annotations, nil
 }
 
-func (c *Client) GetFirstLayerReader(repository, tagName string) (io.ReadCloser, error) {
+func (c *Client) GetFirstLayerReader(repository, tagName string) (*LayerInfo, error) {
 	manifestBytes, err := c.GetManifest(repository, tagName)
 	if err != nil {
 		return nil, err
@@ -121,6 +139,7 @@ func (c *Client) GetFirstLayerReader(repository, tagName string) (io.ReadCloser,
 		Layers []struct {
 			Digest      string            `json:"digest"`
 			Size        int64             `json:"size"`
+			MediaType   string            `json:"mediaType"`
 			Annotations map[string]string `json:"annotations"`
 		} `json:"layers"`
 	}
@@ -150,7 +169,7 @@ func (c *Client) GetFirstLayerReader(repository, tagName string) (io.ReadCloser,
 
 	// Prepare the descriptor for the layer we want to fetch
 	desc := v1.Descriptor{
-		MediaType: "application/zip",
+		MediaType: manifest.Layers[0].MediaType,
 		Digest:    digest.Digest(layerDigest),
 		Size:      manifest.Layers[0].Size,
 	}
@@ -162,25 +181,11 @@ func (c *Client) GetFirstLayerReader(repository, tagName string) (io.ReadCloser,
 		return nil, fmt.Errorf("failed to fetch blob: %v", err)
 	}
 
-	// Wrap the content in our custom ReadCloser to track the filename
-	return &streamReadCloser{
-		ReadCloser: content,
-		filename:   filename,
-		size:       desc.Size,
+	// Return our new LayerInfo with all metadata
+	return &LayerInfo{
+		Reader:    content,
+		Filename:  filename,
+		MediaType: manifest.Layers[0].MediaType,
+		Size:      manifest.Layers[0].Size,
 	}, nil
-}
-
-// streamReadCloser wraps an io.ReadCloser and adds filename and size information
-type streamReadCloser struct {
-	io.ReadCloser
-	filename string
-	size     int64
-}
-
-func (r *streamReadCloser) GetFilename() string {
-	return r.filename
-}
-
-func (r *streamReadCloser) GetSize() int64 {
-	return r.size
 }
