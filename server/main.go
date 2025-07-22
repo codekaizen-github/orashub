@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 
@@ -83,6 +84,36 @@ func InitializeRoutes(client ClientInterface) *http.ServeMux {
 			return
 		}
 	})
+	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}/download-first-layer", func(w http.ResponseWriter, r *http.Request) {
+		namespace := r.PathValue("namespace")
+		repository := r.PathValue("repository")
+		tag := r.PathValue("tag")
+		namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
+		content, err := client.GetFirstLayerReader(namespacedRepository, tag)
+		if err != nil {
+			log.Printf("Error getting first layer reader for %s/%s:%s: %v", namespace, repository, tag, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if content == nil {
+			log.Printf("No content found for %s/%s:%s", namespace, repository, tag)
+			http.Error(w, "no content found for the first layer", http.StatusNotFound)
+			return
+		}
+		// Set the content type to application/octet-stream for binary data
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(http.StatusOK) // Set status code to 200 OK
+		// Write the content to the response
+		if _, err := io.Copy(w, *content); err != nil {
+			log.Printf("Error copying content to response: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// Close the content reader
+		if err := (*content).Close(); err != nil {
+			log.Printf("Error closing content reader: %v", err)
+		}
+	})
 
 	return mux
 }
@@ -91,4 +122,5 @@ type ClientInterface interface {
 	GetDescriptor(repository string, tagName string) (*v1.Descriptor, error)
 	GetManifest(repository string, tagName string) ([]byte, error)
 	GetAnnotations(repository string, tagName string) (map[string]string, error)
+	GetFirstLayerReader(repository, tagName string) (*io.ReadCloser, error)
 }

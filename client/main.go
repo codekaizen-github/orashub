@@ -2,9 +2,11 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 
+	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content/memory"
@@ -14,11 +16,15 @@ import (
 )
 
 type Client struct {
-	AuthClient *auth.Client
-	Registry   string
+	AuthClient  *auth.Client
+	Registry    string
+	MemoryStore *memory.Store
+	Context     context.Context
 }
 
 func NewClient(registry string, username string, password string) *Client {
+	dst := memory.New()
+	ctx := context.Background()
 	authClient := &auth.Client{
 		Client: retry.DefaultClient,
 		Cache:  auth.NewCache(),
@@ -28,8 +34,10 @@ func NewClient(registry string, username string, password string) *Client {
 		}),
 	}
 	return &Client{
-		AuthClient: authClient,
-		Registry:   registry,
+		AuthClient:  authClient,
+		Registry:    registry,
+		MemoryStore: dst,
+		Context:     ctx,
 	}
 }
 
@@ -46,28 +54,19 @@ func (c *Client) GetDescriptor(repository string, tagName string) (*v1.Descripto
 	if err != nil {
 		return nil, err // Handle error
 	}
-	dst := memory.New()
-	ctx := context.Background()
 
-	desc, err := oras.Copy(ctx, src, tagName, dst, tagName, oras.DefaultCopyOptions)
+	desc, err := oras.Copy(c.Context, src, tagName, c.MemoryStore, tagName, oras.DefaultCopyOptions)
 	if err != nil {
 		return nil, err // Handle error
 	}
 	return &desc, nil
 }
 func (c *Client) GetManifest(repository string, tagName string) ([]byte, error) {
-	src, err := c.GetRepository(repository)
+	desc, err := c.GetDescriptor(repository, tagName)
 	if err != nil {
 		return nil, err // Handle error
 	}
-	dst := memory.New()
-	ctx := context.Background()
-
-	desc, err := oras.Copy(ctx, src, tagName, dst, tagName, oras.DefaultCopyOptions)
-	if err != nil {
-		return nil, err // Handle error
-	}
-	content, err := dst.Fetch(ctx, desc)
+	content, err := c.MemoryStore.Fetch(c.Context, *desc)
 	if err != nil {
 		return nil, err // Handle error
 	}
@@ -110,4 +109,39 @@ func (c *Client) GetAnnotations(repository string, tagName string) (map[string]s
 		return nil, err // Handle error
 	}
 	return desc.Annotations, nil
+}
+
+func (c *Client) GetFirstLayerReader(repository, tagName string) (*io.ReadCloser, error) {
+	manifestBytes, err := c.GetManifest(repository, tagName)
+	if err != nil {
+		return nil, err
+	}
+
+	var manifest struct {
+		Layers []struct {
+			Digest string `json:"digest"`
+		} `json:"layers"`
+	}
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		return nil, err
+	}
+	if len(manifest.Layers) == 0 {
+		return nil, fmt.Errorf("no layers found in manifest")
+	}
+
+	layerDigest := manifest.Layers[0].Digest
+
+	// Fetch directly from the remote repository
+	repo, err := c.GetRepository(repository)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("Fetching first layer with digest: %s\n", layerDigest)
+	content, err := repo.Fetch(c.Context, v1.Descriptor{
+		Digest: digest.Digest(layerDigest),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &content, nil // io.ReadCloser
 }
