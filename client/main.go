@@ -56,14 +56,18 @@ func (c *Client) GetDescriptor(repository string, tagName string) (*v1.Descripto
 	return &desc, nil
 }
 func (c *Client) GetManifest(repository string, tagName string) ([]byte, error) {
-	desc, err := c.GetDescriptor(repository, tagName)
+	src, err := c.GetRepository(repository)
 	if err != nil {
 		return nil, err // Handle error
 	}
 	dst := memory.New()
 	ctx := context.Background()
 
-	content, err := dst.Fetch(ctx, *desc)
+	desc, err := oras.Copy(ctx, src, tagName, dst, tagName, oras.DefaultCopyOptions)
+	if err != nil {
+		return nil, err // Handle error
+	}
+	content, err := dst.Fetch(ctx, desc)
 	if err != nil {
 		return nil, err // Handle error
 	}
