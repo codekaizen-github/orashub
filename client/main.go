@@ -1,3 +1,5 @@
+// ListTags returns all tags for a given repository
+// ListTags returns all tags for a given repository
 package client
 
 import (
@@ -94,14 +96,6 @@ func (c *Client) GetManifest(repository string, tagName string) ([]byte, error) 
 	}
 	return readContent, nil
 }
-func (c *Client) GetAnnotations(repository string, tagName string) (map[string]string, error) {
-	desc, err := c.GetDescriptor(repository, tagName)
-	if err != nil {
-		return nil, err // Handle error
-	}
-	return desc.Annotations, nil
-}
-
 func (c *Client) GetFirstLayerReader(repository, tagName string) (*LayerInfo, error) {
 	manifestBytes, err := c.GetManifest(repository, tagName)
 	if err != nil {
@@ -160,4 +154,22 @@ func (c *Client) GetFirstLayerReader(repository, tagName string) (*LayerInfo, er
 		MediaType: manifest.Layers[0].MediaType,
 		Size:      manifest.Layers[0].Size,
 	}, nil
+}
+
+// ListTags returns all tags for a given repository
+func (c *Client) ListTags(repository string) ([]string, error) {
+	repo, err := c.GetRepository(repository)
+	if err != nil {
+		return nil, err
+	}
+
+	var tags []string
+	err = repo.Tags(c.Context, "", func(receivedTags []string) error {
+		tags = append(tags, receivedTags...)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return tags, nil
 }

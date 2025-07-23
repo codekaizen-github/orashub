@@ -24,6 +24,28 @@ func Serve(router *http.ServeMux, port string) {
 func InitializeRoutes(client ClientInterface) *http.ServeMux {
 	mux := http.NewServeMux()
 
+	// List tags endpoint
+	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/", func(w http.ResponseWriter, r *http.Request) {
+		namespace := r.PathValue("namespace")
+		repository := r.PathValue("repository")
+		namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
+		tags, err := client.ListTags(namespacedRepository)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		response := map[string]interface{}{
+			"repository": namespacedRepository,
+			"tags":       tags,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	})
+
 	// Root endpoint - provides basic information
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -41,27 +63,27 @@ func InitializeRoutes(client ClientInterface) *http.ServeMux {
 		html := fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <head>
-    <title>WordPress Plugin Registry ORAS</title>
-    <style>
-        body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
-        h1 { color: #2c3e50; }
-        a { color: #3498db; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        .api-link { display: inline-block; margin-top: 20px; background: #3498db; color: white; padding: 10px 15px; border-radius: 4px; }
-        .api-link:hover { background: #2980b9; text-decoration: none; }
-        code { background: #f8f8f8; padding: 2px 5px; border-radius: 3px; }
-    </style>
+	<title>WordPress Plugin Registry ORAS</title>
+	<style>
+		body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
+		h1 { color: #2c3e50; }
+		a { color: #3498db; text-decoration: none; }
+		a:hover { text-decoration: underline; }
+		.api-link { display: inline-block; margin-top: 20px; background: #3498db; color: white; padding: 10px 15px; border-radius: 4px; }
+		.api-link:hover { background: #2980b9; text-decoration: none; }
+		code { background: #f8f8f8; padding: 2px 5px; border-radius: 3px; }
+	</style>
 </head>
 <body>
-    <h1>WordPress Plugin Registry ORAS</h1>
-    <p>A service for storing and retrieving WordPress plugins using OCI Registry As Storage (ORAS).</p>
+	<h1>WordPress Plugin Registry ORAS</h1>
+	<p>A service for storing and retrieving WordPress plugins using OCI Registry As Storage (ORAS).</p>
 
-    <h2>API Access</h2>
-    <p>The API is available at: <code>%s</code></p>
-    <a href="%s" class="api-link">Explore the API</a>
+	<h2>API Access</h2>
+	<p>The API is available at: <code>%s</code></p>
+	<a href="%s" class="api-link">Explore the API</a>
 
-    <h2>Documentation</h2>
-    <p>For more information, please refer to the <a href="https://github.com/codekaizen-github/wordpress-plugin-registry-oras">GitHub repository</a>.</p>
+	<h2>Documentation</h2>
+	<p>For more information, please refer to the <a href="https://github.com/codekaizen-github/wordpress-plugin-registry-oras">GitHub repository</a>.</p>
 </body>
 </html>`, apiURL, apiURL)
 
@@ -180,28 +202,6 @@ func InitializeRoutes(client ClientInterface) *http.ServeMux {
 			return
 		}
 	})
-	// Handle annotations endpoint
-	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}/annotations", func(w http.ResponseWriter, r *http.Request) {
-		namespace := r.PathValue("namespace")
-		repository := r.PathValue("repository")
-		tag := r.PathValue("tag")
-		namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
-		annotations, err := client.GetAnnotations(namespacedRepository, tag)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		// log the annotations
-		log.Printf("Annotations for %s/%s:%s: %v", namespace, repository, tag, annotations)
-		w.Header().Set("Content-Type", "application/json")
-		// Marshal annotations to JSON
-		w.WriteHeader(http.StatusOK) // Set status code to 200 OK
-		// Use a JSON encoder to write the annotations
-		if err := json.NewEncoder(w).Encode(annotations); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	})
 	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}/download", func(w http.ResponseWriter, r *http.Request) {
 		namespace := r.PathValue("namespace")
 		repository := r.PathValue("repository")
@@ -247,6 +247,6 @@ func InitializeRoutes(client ClientInterface) *http.ServeMux {
 type ClientInterface interface {
 	GetDescriptor(repository string, tagName string) (*v1.Descriptor, error)
 	GetManifest(repository string, tagName string) ([]byte, error)
-	GetAnnotations(repository string, tagName string) (map[string]string, error)
 	GetFirstLayerReader(repository, tagName string) (*client.LayerInfo, error)
+	ListTags(repository string) ([]string, error)
 }
