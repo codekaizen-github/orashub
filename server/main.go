@@ -1,13 +1,14 @@
-package server
+package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 
 	"github.com/codekaizen-github/wordpress-plugin-registry-oras/client"
-	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/codekaizen-github/wordpress-plugin-registry-oras/server/router"
 )
 
 // Version information - will be set during build via ldflags
@@ -16,6 +17,24 @@ var (
 	Commit  = "none"
 	Date    = "unknown"
 )
+
+// Start initializes and starts the server, handling version flags
+func main() {
+	// Define command line flags
+	versionFlag := flag.Bool("version", false, "Print version information and exit")
+	flag.Parse()
+
+	// If version flag is set, print version info and exit
+	if *versionFlag {
+		fmt.Printf("WordPress Plugin Registry ORAS v%s\n", Version)
+		fmt.Printf("Commit: %s\n", Commit)
+		fmt.Printf("Built: %s\n", Date)
+		return
+	}
+
+	// Initialize and start the server
+	Initialize()
+}
 
 // Initialize creates a new client and server based on environment variables
 func Initialize() {
@@ -49,7 +68,7 @@ func Initialize() {
 	)
 
 	// Create router with client
-	router := NewRouter(apiClient)
+	router := router.NewRouter(apiClient)
 
 	// Create mux and set up routes using the router
 	mux := http.NewServeMux()
@@ -67,12 +86,4 @@ func Serve(handler http.Handler, port string) {
 	}
 	log.Println("Listening...")
 	server.ListenAndServe() // Run the http server
-}
-
-// ClientInterface defines the methods a client must implement
-type ClientInterface interface {
-	GetDescriptor(repository string, tagName string) (*v1.Descriptor, error)
-	GetManifest(repository string, tagName string) ([]byte, error)
-	GetFirstLayerReader(repository, tagName string) (*client.LayerInfo, error)
-	ListTags(repository string) ([]string, error)
 }

@@ -1,5 +1,4 @@
 // ListTags returns all tags for a given repository
-// ListTags returns all tags for a given repository
 package client
 
 import (
@@ -17,24 +16,6 @@ import (
 	"oras.land/oras-go/v2/registry/remote/retry"
 )
 
-// LayerInfo contains metadata about a layer
-type LayerInfo struct {
-	Reader    io.ReadCloser
-	Filename  string
-	MediaType string
-	Size      int64
-}
-
-// Close closes the underlying reader
-func (l *LayerInfo) Close() error {
-	return l.Reader.Close()
-}
-
-// Read implements io.Reader for the LayerInfo struct
-func (l *LayerInfo) Read(p []byte) (n int, err error) {
-	return l.Reader.Read(p)
-}
-
 type Client struct {
 	AuthClient  *auth.Client
 	Registry    string
@@ -42,7 +23,7 @@ type Client struct {
 	Context     context.Context
 }
 
-func NewClient(registry string, username string, password string) *Client {
+func NewClient(registry string, username string, password string) ClientInterface {
 	dst := memory.New()
 	ctx := context.Background()
 	authClient := &auth.Client{
@@ -96,7 +77,7 @@ func (c *Client) GetManifest(repository string, tagName string) ([]byte, error) 
 	}
 	return readContent, nil
 }
-func (c *Client) GetFirstLayerReader(repository, tagName string) (*LayerInfo, error) {
+func (c *Client) GetFirstLayerReader(repository, tagName string) (LayerInfoInterface, error) {
 	manifestBytes, err := c.GetManifest(repository, tagName)
 	if err != nil {
 		return nil, err

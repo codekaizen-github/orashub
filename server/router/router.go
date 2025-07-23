@@ -1,4 +1,4 @@
-package server
+package router
 
 import (
 	"encoding/json"
@@ -7,18 +7,18 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"path/filepath"
+
+	"github.com/codekaizen-github/wordpress-plugin-registry-oras/client"
 )
 
 // Router handles all HTTP routes and contains the dependencies needed for handlers
 type Router struct {
-	Client    ClientInterface
+	Client    client.ClientInterface
 	Templates *template.Template
 }
 
-// NewRouter creates a new Router instance with the given client
-func NewRouter(client ClientInterface) *Router {
+func NewRouter(client client.ClientInterface) RouterInterface {
 	r := &Router{
 		Client: client,
 	}
@@ -39,38 +39,6 @@ func (r *Router) loadTemplates() error {
 		return fmt.Errorf("error loading templates: %v", err)
 	}
 	return nil
-}
-
-// getServerInfo returns the scheme, host, and port to use for API URLs
-// It checks environment variables first, then falls back to request values
-func getServerInfo(r *http.Request) (scheme, host string) {
-	// Check for scheme override from environment variable
-	scheme = os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_SCHEME")
-	if scheme == "" {
-		// Fall back to request scheme
-		if r.TLS != nil {
-			scheme = "https"
-		} else {
-			scheme = "http"
-		}
-	}
-
-	// Check for host override from environment variable
-	envHost := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_HOST")
-	envPort := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_PORT")
-
-	if envHost != "" {
-		host = envHost
-		// If port is also specified, append it to the host
-		if envPort != "" && envPort != "80" && envPort != "443" {
-			host = fmt.Sprintf("%s:%s", host, envPort)
-		}
-	} else {
-		// Use the host from the request
-		host = r.Host
-	}
-
-	return scheme, host
 }
 
 // HandleRoot handles the root endpoint
@@ -268,11 +236,11 @@ func (r *Router) HandleDownload(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Set the content type from the layer's media type
-	w.Header().Set("Content-Type", layerInfo.MediaType)
+	w.Header().Set("Content-Type", layerInfo.GetMediaType())
 	// Set Content-Disposition header to make the browser download with the correct filename
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, layerInfo.Filename))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, layerInfo.GetFilename()))
 	// Set Content-Length header for better download handling
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", layerInfo.Size))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", layerInfo.GetSize()))
 
 	w.WriteHeader(http.StatusOK) // Set status code to 200 OK
 	// Write the content to the response
