@@ -3,10 +3,12 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/codekaizen-github/wordpress-plugin-registry-oras/client"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -20,6 +22,19 @@ func Serve(router *http.ServeMux, port string) {
 	}
 	log.Println("Listening...")
 	server.ListenAndServe() // Run the http server
+}
+
+// Template cache to store parsed templates
+var templates *template.Template
+
+// loadTemplates loads all templates from the templates directory
+func loadTemplates() error {
+	var err error
+	templates, err = template.ParseGlob("templates/*.html")
+	if err != nil {
+		return fmt.Errorf("error loading templates: %v", err)
+	}
+	return nil
 }
 
 // getServerInfo returns the scheme, host, and port to use for API URLs
@@ -55,6 +70,11 @@ func getServerInfo(r *http.Request) (scheme, host string) {
 }
 
 func InitializeRoutes(client ClientInterface) *http.ServeMux {
+	// Load templates
+	if err := loadTemplates(); err != nil {
+		log.Printf("Warning: %v", err)
+	}
+
 	mux := http.NewServeMux()
 
 	// List tags endpoint
@@ -86,40 +106,41 @@ func InitializeRoutes(client ClientInterface) *http.ServeMux {
 			return
 		}
 
+		// Get server information for API URL
 		scheme, host := getServerInfo(r)
 		apiURL := fmt.Sprintf("%s://%s/api/v1", scheme, host)
 
-		// HTML response with basic info and link to API
-		html := fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head>
-	<title>WordPress Plugin Registry ORAS</title>
-	<style>
-		body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
-		h1 { color: #2c3e50; }
-		a { color: #3498db; text-decoration: none; }
-		a:hover { text-decoration: underline; }
-		.api-link { display: inline-block; margin-top: 20px; background: #3498db; color: white; padding: 10px 15px; border-radius: 4px; }
-		.api-link:hover { background: #2980b9; text-decoration: none; }
-		code { background: #f8f8f8; padding: 2px 5px; border-radius: 3px; }
-	</style>
-</head>
-<body>
-	<h1>WordPress Plugin Registry ORAS</h1>
-	<p>A service for storing and retrieving WordPress plugins using OCI Registry As Storage (ORAS).</p>
+		// Define template data
+		data := struct {
+			ApiURL string
+		}{
+			ApiURL: apiURL,
+		}
 
-	<h2>API Access</h2>
-	<p>The API is available at: <code>%s</code></p>
-	<a href="%s" class="api-link">Explore the API</a>
-
-	<h2>Documentation</h2>
-	<p>For more information, please refer to the <a href="https://github.com/codekaizen-github/wordpress-plugin-registry-oras">GitHub repository</a>.</p>
-</body>
-</html>`, apiURL, apiURL)
-
+		// Execute template from cache
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(html))
+		if templates != nil {
+			if err := templates.ExecuteTemplate(w, "index.html", data); err != nil {
+				log.Printf("Error executing template: %v", err)
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			// Fallback to parsing template directly if cache failed
+			tmplPath := filepath.Join("templates", "index.html")
+			tmpl, err := template.ParseFiles(tmplPath)
+			if err != nil {
+				log.Printf("Error parsing template: %v", err)
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			if err := tmpl.Execute(w, data); err != nil {
+				log.Printf("Error executing template: %v", err)
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+		}
 	})
 
 	// API root endpoint
