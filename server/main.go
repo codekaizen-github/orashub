@@ -23,6 +23,123 @@ func Serve(router *http.ServeMux, port string) {
 
 func InitializeRoutes(client ClientInterface) *http.ServeMux {
 	mux := http.NewServeMux()
+
+	// Root endpoint - provides basic information
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		apiURL := fmt.Sprintf("%s://%s/api/v1", scheme, r.Host)
+
+		// HTML response with basic info and link to API
+		html := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+    <title>WordPress Plugin Registry ORAS</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #2c3e50; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .api-link { display: inline-block; margin-top: 20px; background: #3498db; color: white; padding: 10px 15px; border-radius: 4px; }
+        .api-link:hover { background: #2980b9; text-decoration: none; }
+        code { background: #f8f8f8; padding: 2px 5px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>WordPress Plugin Registry ORAS</h1>
+    <p>A service for storing and retrieving WordPress plugins using OCI Registry As Storage (ORAS).</p>
+
+    <h2>API Access</h2>
+    <p>The API is available at: <code>%s</code></p>
+    <a href="%s" class="api-link">Explore the API</a>
+
+    <h2>Documentation</h2>
+    <p>For more information, please refer to the <a href="https://github.com/codekaizen-github/wordpress-plugin-registry-oras">GitHub repository</a>.</p>
+</body>
+</html>`, apiURL, apiURL)
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(html))
+	})
+
+	// API root endpoint
+	mux.HandleFunc("GET /api/v1", func(w http.ResponseWriter, r *http.Request) {
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		baseURL := fmt.Sprintf("%s://%s/api/v1", scheme, r.Host)
+
+		// Create API root response
+		response := map[string]interface{}{
+			"api_version": "v1",
+			"description": "WordPress Plugin Registry ORAS API",
+			"usage": map[string]string{
+				"resource_path": baseURL + "/{namespace}/{repository}/{tag}",
+				"example":       baseURL + "/codekaizen-github/wp-github-gist-block/latest",
+			},
+			"endpoints_pattern": map[string]string{
+				"resource_info": baseURL + "/{namespace}/{repository}/{tag}",
+				"descriptor":    baseURL + "/{namespace}/{repository}/{tag}/descriptor",
+				"manifest":      baseURL + "/{namespace}/{repository}/{tag}/manifest",
+				"annotations":   baseURL + "/{namespace}/{repository}/{tag}/annotations",
+				"download":      baseURL + "/{namespace}/{repository}/{tag}/download",
+			},
+		}
+
+		// Return JSON response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	})
+
+	// Index endpoint - shows available endpoints for a resource
+	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}", func(w http.ResponseWriter, r *http.Request) {
+		namespace := r.PathValue("namespace")
+		repository := r.PathValue("repository")
+		tag := r.PathValue("tag")
+
+		// Build base URL for this resource
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		baseURL := fmt.Sprintf("%s://%s/api/v1/%s/%s/%s",
+			scheme, r.Host, namespace, repository, tag)
+
+		// Create API directory response
+		response := map[string]interface{}{
+			"resource": fmt.Sprintf("%s/%s:%s", namespace, repository, tag),
+			"endpoints": map[string]string{
+				"self":        baseURL,
+				"descriptor":  baseURL + "/descriptor",
+				"manifest":    baseURL + "/manifest",
+				"annotations": baseURL + "/annotations",
+				"download":    baseURL + "/download",
+			},
+			"description": "WordPress Plugin Registry ORAS API",
+		}
+
+		// Return JSON response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	})
+
 	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}/descriptor", func(w http.ResponseWriter, r *http.Request) {
 		namespace := r.PathValue("namespace")
 		repository := r.PathValue("repository")

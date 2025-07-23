@@ -64,6 +64,12 @@ The server will start on port 8080 (or the port specified in the `WORDPRESS_PLUG
 
 ### API Endpoints
 
+#### Discovery Endpoints
+- `GET /` - HTML welcome page with basic information
+- `GET /api/v1` - API root showing available endpoint patterns
+- `GET /api/v1/{namespace}/{repository}/{tag}` - Shows all endpoints for a specific plugin
+
+#### Resource Endpoints
 - `GET /api/v1/{namespace}/{repository}/{tag}/download` - Download the plugin
 - `GET /api/v1/{namespace}/{repository}/{tag}/descriptor` - Get descriptor metadata
 - `GET /api/v1/{namespace}/{repository}/{tag}/manifest` - Get manifest
