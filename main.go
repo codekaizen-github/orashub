@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
@@ -9,21 +10,40 @@ import (
 	"github.com/codekaizen-github/wordpress-plugin-registry-oras/server"
 )
 
+// Version information - will be set during build via ldflags
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func main() {
+	// Define command line flags
+	versionFlag := flag.Bool("version", false, "Print version information and exit")
+	flag.Parse()
+
+	// If version flag is set, print version info and exit
+	if *versionFlag {
+		fmt.Printf("WordPress Plugin Registry ORAS v%s\n", version)
+		fmt.Printf("Commit: %s\n", commit)
+		fmt.Printf("Built: %s\n", date)
+		return
+	}
+
 	fmt.Println(andrew.Thing())
-	registry := os.Getenv("REGISTRY")
+	registry := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY")
 	if registry == "" {
-		panic("REGISTRY environment variable is not set")
+		panic("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY environment variable is not set")
 	}
-	registry_username := os.Getenv("REGISTRY_USERNAME")
+	registry_username := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_USERNAME")
 	if registry_username == "" {
-		panic("REGISTRY_USERNAME environment variable is not set")
+		panic("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_USERNAME environment variable is not set")
 	}
-	registry_password := os.Getenv("REGISTRY_PASSWORD")
+	registry_password := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_PASSWORD")
 	if registry_password == "" {
-		panic("REGISTRY_PASSWORD environment variable is not set")
+		panic("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_PASSWORD environment variable is not set")
 	}
-	port := os.Getenv("PORT")
+	port := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_PORT")
 	if port == "" {
 		port = "8080" // Default port if not set
 	}
@@ -47,8 +67,8 @@ func main() {
 	// 	Client: retry.DefaultClient,
 	// 	Cache:  auth.NewCache(),
 	// 	Credential: auth.StaticCredential(registry, auth.Credential{
-	// 		Username: os.Getenv("REGISTRY_USERNAME"),
-	// 		Password: os.Getenv("REGISTRY_PASSWORD"),
+	// 		Username: os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_USERNAME"),
+	// 		Password: os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_PASSWORD"),
 	// 	}),
 	// }
 

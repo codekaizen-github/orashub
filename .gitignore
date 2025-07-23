@@ -1,1 +1,23 @@
 .env
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+wordpress-plugin-registry-oras
+wordpress-plugin-registry-oras-*
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+
+# IDE-specific files
+.idea/
+.vscode/
