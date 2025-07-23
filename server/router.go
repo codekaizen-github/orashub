@@ -247,29 +247,6 @@ func (r *Router) HandleManifest(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// HandleAnnotations handles the annotations endpoint
-func (r *Router) HandleAnnotations(w http.ResponseWriter, req *http.Request) {
-	namespace := req.PathValue("namespace")
-	repository := req.PathValue("repository")
-	tag := req.PathValue("tag")
-	namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
-	annotations, err := r.Client.GetAnnotations(namespacedRepository, tag)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	// log the annotations
-	log.Printf("Annotations for %s/%s:%s: %v", namespace, repository, tag, annotations)
-	w.Header().Set("Content-Type", "application/json")
-	// Marshal annotations to JSON
-	w.WriteHeader(http.StatusOK) // Set status code to 200 OK
-	// Use a JSON encoder to write the annotations
-	if err := json.NewEncoder(w).Encode(annotations); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-}
-
 // HandleDownload handles the download endpoint
 func (r *Router) HandleDownload(w http.ResponseWriter, req *http.Request) {
 	namespace := req.PathValue("namespace")
@@ -319,6 +296,5 @@ func (r *Router) SetupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}", r.HandleResourceInfo)
 	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}/descriptor", r.HandleDescriptor)
 	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}/manifest", r.HandleManifest)
-	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}/annotations", r.HandleAnnotations)
 	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}/download", r.HandleDownload)
 }
