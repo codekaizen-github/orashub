@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/codekaizen-github/wordpress-plugin-registry-oras/client"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -19,6 +20,38 @@ func Serve(router *http.ServeMux, port string) {
 	}
 	log.Println("Listening...")
 	server.ListenAndServe() // Run the http server
+}
+
+// getServerInfo returns the scheme, host, and port to use for API URLs
+// It checks environment variables first, then falls back to request values
+func getServerInfo(r *http.Request) (scheme, host string) {
+	// Check for scheme override from environment variable
+	scheme = os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_SCHEME")
+	if scheme == "" {
+		// Fall back to request scheme
+		if r.TLS != nil {
+			scheme = "https"
+		} else {
+			scheme = "http"
+		}
+	}
+
+	// Check for host override from environment variable
+	envHost := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_HOST")
+	envPort := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_PORT")
+
+	if envHost != "" {
+		host = envHost
+		// If port is also specified, append it to the host
+		if envPort != "" && envPort != "80" && envPort != "443" {
+			host = fmt.Sprintf("%s:%s", host, envPort)
+		}
+	} else {
+		// Use the host from the request
+		host = r.Host
+	}
+
+	return scheme, host
 }
 
 func InitializeRoutes(client ClientInterface) *http.ServeMux {
@@ -53,11 +86,8 @@ func InitializeRoutes(client ClientInterface) *http.ServeMux {
 			return
 		}
 
-		scheme := "http"
-		if r.TLS != nil {
-			scheme = "https"
-		}
-		apiURL := fmt.Sprintf("%s://%s/api/v1", scheme, r.Host)
+		scheme, host := getServerInfo(r)
+		apiURL := fmt.Sprintf("%s://%s/api/v1", scheme, host)
 
 		// HTML response with basic info and link to API
 		html := fmt.Sprintf(`<!DOCTYPE html>
@@ -94,11 +124,8 @@ func InitializeRoutes(client ClientInterface) *http.ServeMux {
 
 	// API root endpoint
 	mux.HandleFunc("GET /api/v1", func(w http.ResponseWriter, r *http.Request) {
-		scheme := "http"
-		if r.TLS != nil {
-			scheme = "https"
-		}
-		baseURL := fmt.Sprintf("%s://%s/api/v1", scheme, r.Host)
+		scheme, host := getServerInfo(r)
+		baseURL := fmt.Sprintf("%s://%s/api/v1", scheme, host)
 
 		// Create API root response
 		response := map[string]interface{}{
@@ -133,12 +160,9 @@ func InitializeRoutes(client ClientInterface) *http.ServeMux {
 		tag := r.PathValue("tag")
 
 		// Build base URL for this resource
-		scheme := "http"
-		if r.TLS != nil {
-			scheme = "https"
-		}
+		scheme, host := getServerInfo(r)
 		baseURL := fmt.Sprintf("%s://%s/api/v1/%s/%s/%s",
-			scheme, r.Host, namespace, repository, tag)
+			scheme, host, namespace, repository, tag)
 
 		// Create API directory response
 		response := map[string]interface{}{
