@@ -1,6 +1,6 @@
 .PHONY: build clean test release
 
-BINARY_NAME=wp-plugin-registry
+BINARY_NAME=wordpress-plugin-registry-oras
 VERSION=$(shell git describe --tags --always --dirty)
 COMMIT=$(shell git rev-parse HEAD)
 BUILD_DATE=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
