@@ -74,11 +74,8 @@ func Initialize() {
 		panic("No registries configured. Please set up at least one registry in the configuration file or environment variables.")
 	}
 
-	// Create image policy from the configuration
-	imagePolicy := &policy.ImagePolicy{
-		AllowedRepositories: config.AllowedRepositories,
-		BlockedRepositories: config.BlockedRepositories,
-	}
+	// Get image policy from the configuration
+	imagePolicy := config.GetImagePolicy()
 
 	// Create registry manager
 	manager := router.NewRegistryManager(config, imagePolicy)

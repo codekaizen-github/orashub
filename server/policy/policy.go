@@ -54,29 +54,12 @@ func LoadConfig(path string) (*ConfigFile, error) {
 	return &config, nil
 }
 
-// LoadImagePolicy loads a repository policy from a YAML file with environment variable substitution
-func LoadImagePolicy(path string) (*ImagePolicy, error) {
-	var policy ImagePolicy
-
-	// Read the file
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
+// GetImagePolicy extracts the repository policy from the configuration
+func (c *ConfigFile) GetImagePolicy() *ImagePolicy {
+	return &ImagePolicy{
+		AllowedRepositories: c.AllowedRepositories,
+		BlockedRepositories: c.BlockedRepositories,
 	}
-
-	// Substitute environment variables
-	expandedData, err := envsubst.Bytes(data)
-	if err != nil {
-		return nil, err
-	}
-
-	// Unmarshal the YAML
-	err = yaml.Unmarshal(expandedData, &policy)
-	if err != nil {
-		return nil, err
-	}
-
-	return &policy, nil
 }
 
 // repositoryMatches checks if a repository matches a pattern, supporting wildcards
