@@ -1,8 +1,0 @@
-allowed_images:
-  - "docker.io/library/nginx:latest"
-  - "ghcr.io/myorg/myapp:*"
-  - "gcr.io/myproject/*"
-  - "myregistry.example.com/team/service@sha256:abcd1234"
-blocked_images:
-  - "docker.io/library/redis:5.0"
-  - "gcr.io/evilcorp/*"

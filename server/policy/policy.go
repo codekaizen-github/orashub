@@ -7,13 +7,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ImagePolicy represents the allowed and blocked container images
+// ImagePolicy represents the allowed and blocked repositories
+// Note: Despite the name "ImagePolicy", this is now focused on repository paths rather than images
 type ImagePolicy struct {
-	AllowedImages []string `yaml:"allowed_images"`
-	BlockedImages []string `yaml:"blocked_images"`
+	AllowedRepositories []string `yaml:"allowed_repositories"`
+	BlockedRepositories []string `yaml:"blocked_repositories"`
 }
 
-// LoadImagePolicy loads an image policy from a YAML file
+// LoadImagePolicy loads a repository policy from a YAML file
 func LoadImagePolicy(path string) (*ImagePolicy, error) {
 	var policy ImagePolicy
 	file, err := os.ReadFile(path)
@@ -24,33 +25,33 @@ func LoadImagePolicy(path string) (*ImagePolicy, error) {
 	return &policy, err
 }
 
-// imageMatches checks if an image matches a pattern, supporting wildcards
-func imageMatches(pattern, image string) bool {
+// repositoryMatches checks if a repository matches a pattern, supporting wildcards
+func repositoryMatches(pattern, repository string) bool {
 	// Simple wildcard support
 	if strings.HasSuffix(pattern, "*") {
-		return strings.HasPrefix(image, strings.TrimSuffix(pattern, "*"))
+		return strings.HasPrefix(repository, strings.TrimSuffix(pattern, "*"))
 	}
-	return image == pattern
+	return pattern == repository
 }
 
-// IsAllowed checks if an image is allowed by the policy
+// IsAllowed checks if a repository is allowed by the policy
 // First checks if it's explicitly blocked, then if it's explicitly allowed
 // Returns false by default (deny by default)
-func IsAllowed(image string, policy *ImagePolicy) bool {
-	// Check if the image is in the blocklist
-	for _, blocked := range policy.BlockedImages {
-		if imageMatches(blocked, image) {
+func IsAllowed(repository string, policy *ImagePolicy) bool {
+	// Check if the repository is in the blocklist
+	for _, blocked := range policy.BlockedRepositories {
+		if repositoryMatches(blocked, repository) {
 			return false
 		}
 	}
 
-	if len(policy.AllowedImages) == 0 {
-		return true // If no allowed images, allow all
+	if len(policy.AllowedRepositories) == 0 {
+		return true // If no allowed repositories, allow all
 	}
 
-	// Check if the image is in the allowlist
-	for _, allowed := range policy.AllowedImages {
-		if imageMatches(allowed, image) {
+	// Check if the repository is in the allowlist
+	for _, allowed := range policy.AllowedRepositories {
+		if repositoryMatches(allowed, repository) {
 			return true
 		}
 	}

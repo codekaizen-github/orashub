@@ -65,17 +65,17 @@ func Initialize() {
 	var imagePolicy *policy.ImagePolicy
 	policyPath := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_POLICY_PATH")
 	if policyPath == "" {
-		policyPath = "config/image_policy.yaml"
+		policyPath = "config/repository_policy.yaml"
 	}
 
 	imagePolicy, err := policy.LoadImagePolicy(policyPath)
 	if err != nil {
-		log.Printf("Warning: Could not load image policy from %s: %v", policyPath, err)
-		log.Println("Running without image policy restrictions")
+		log.Printf("Warning: Could not load repository policy from %s: %v", policyPath, err)
+		log.Println("Running without repository policy restrictions")
 		imagePolicy = &policy.ImagePolicy{} // Empty policy
 	} else {
-		log.Printf("Loaded image policy with %d allowed and %d blocked images",
-			len(imagePolicy.AllowedImages), len(imagePolicy.BlockedImages))
+		log.Printf("Loaded repository policy with %d allowed and %d blocked repositories",
+			len(imagePolicy.AllowedRepositories), len(imagePolicy.BlockedRepositories))
 	}
 
 	// Create client

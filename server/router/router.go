@@ -275,26 +275,27 @@ func (r *Router) HandleDownload(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// checkImagePolicy checks if the requested image is allowed by policy
+// checkImagePolicy checks if the requested repository is allowed by policy
 func (r *Router) checkImagePolicy(w http.ResponseWriter, req *http.Request, namespace, repository, tag string) bool {
-	// If no policy is configured, allow all images
-	if r.ImagePolicy == nil || (len(r.ImagePolicy.AllowedImages) == 0 && len(r.ImagePolicy.BlockedImages) == 0) {
+	// If no policy is configured, allow all repositories
+	if r.ImagePolicy == nil || (len(r.ImagePolicy.AllowedRepositories) == 0 && len(r.ImagePolicy.BlockedRepositories) == 0) {
 		return true
 	}
 
-	// Construct the full image reference for policy checking
+	// Construct the full repository reference for policy checking
 	registry := req.Host // Use the host from the request as the registry
 	if r.Client.GetRegistry() != "" {
 		// If the client has a registry configured, use that instead
 		registry = r.Client.GetRegistry()
 	}
 
-	fullImageRef := fmt.Sprintf("%s/%s/%s:%s", registry, namespace, repository, tag)
+	// Create repository path without the tag
+	repositoryPath := fmt.Sprintf("%s/%s/%s", registry, namespace, repository)
 
-	// Check if the image is allowed by policy
-	if !policy.IsAllowed(fullImageRef, r.ImagePolicy) {
-		log.Printf("Access denied to image %s by policy", fullImageRef)
-		http.Error(w, "Access to this image is denied by policy", http.StatusForbidden)
+	// Check if the repository is allowed by policy
+	if !policy.IsAllowed(repositoryPath, r.ImagePolicy) {
+		log.Printf("Access denied to repository %s by policy", repositoryPath)
+		http.Error(w, "Access to this repository is denied by policy", http.StatusForbidden)
 		return false
 	}
 
