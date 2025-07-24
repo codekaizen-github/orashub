@@ -65,7 +65,7 @@ func Initialize() {
 	var imagePolicy *policy.ImagePolicy
 	policyPath := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_POLICY_PATH")
 	if policyPath == "" {
-		policyPath = "config/repository_policy.yaml"
+		policyPath = "../config/repository_policy.yaml"
 	}
 
 	imagePolicy, err := policy.LoadImagePolicy(policyPath)
