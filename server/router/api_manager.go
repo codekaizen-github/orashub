@@ -2,6 +2,7 @@ package router
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -13,12 +14,17 @@ import (
 	"github.com/codekaizen-github/wordpress-plugin-registry-oras/server/policy"
 )
 
+// Custom error types
+var (
+	ErrRegistryNotFound  = errors.New("registry not found")
+	ErrNoRegistryClients = errors.New("no registry clients available")
+)
+
 // ApiManager manages the API routing and client interactions
 type ApiManager struct {
-	Clients         map[string]client.ClientInterface
-	Templates       *template.Template
-	ImagePolicy     *policy.ImagePolicy
-	DefaultRegistry string
+	Clients     map[string]client.ClientInterface
+	Templates   *template.Template
+	ImagePolicy *policy.ImagePolicy
 }
 
 // NewApiManager creates a new API manager with the given configuration
@@ -45,11 +51,6 @@ func NewApiManager(config *policy.ConfigFile, imagePolicy *policy.ImagePolicy) *
 
 		// Store client in map
 		manager.Clients[registry.Name] = apiClient
-
-		// Set the first registry as default
-		if manager.DefaultRegistry == "" {
-			manager.DefaultRegistry = registry.Name
-		}
 	}
 
 	// Load templates
@@ -91,27 +92,28 @@ func (m *ApiManager) SetupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/registry/{registry}/{namespace}/{repository}/{tag}/download", m.HandleDownload)
 }
 
-// getClient returns the client for the specified registry, or the default client if none specified
-func (m *ApiManager) getClient(registry string) client.ClientInterface {
-	if registry == "" {
-		registry = m.DefaultRegistry
+// getClient returns the client for the specified registry, or the first available client if none specified
+// Returns error of type ErrRegistryNotFound if a specific registry was requested but not found
+// Returns error of type ErrNoRegistryClients if no clients are available
+func (m *ApiManager) getClient(registry string) (client.ClientInterface, error) {
+	// If a registry was specified, try to get that specific client
+	if registry != "" {
+		if client, ok := m.Clients[registry]; ok {
+			return client, nil
+		}
+		// If a specific registry was requested but not found, return an error
+		return nil, fmt.Errorf("%w: '%s'", ErrRegistryNotFound, registry)
 	}
 
-	if client, ok := m.Clients[registry]; ok {
-		return client
-	}
-
-	// If no client found and we have at least one client, return the first one
+	// If no registry specified, return the first available client
 	if len(m.Clients) > 0 {
 		for _, client := range m.Clients {
-			return client
+			return client, nil
 		}
 	}
 
-	return nil
-}
-
-// HandleRoot handles the root endpoint
+	return nil, ErrNoRegistryClients
+} // HandleRoot handles the root endpoint
 func (m *ApiManager) HandleRoot(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path != "/" {
 		http.NotFound(w, req)
@@ -219,10 +221,22 @@ func (m *ApiManager) checkImagePolicy(w http.ResponseWriter, req *http.Request, 
 		return true
 	}
 
-	// Construct the full repository reference for policy checking
+	// Get the registry host to use for policy checking
 	registryHost := registry
 	if registryHost == "" {
-		registryHost = m.DefaultRegistry
+		// If no registry specified, get the registry from the client we would use
+		client, err := m.getClient("")
+		if err != nil {
+			// No clients available, can't check policy
+			switch {
+			case errors.Is(err, ErrNoRegistryClients):
+				http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			default:
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return false
+		}
+		registryHost = client.GetRegistry()
 	}
 
 	// Create repository path without the tag
@@ -246,9 +260,17 @@ func (m *ApiManager) HandleListTags(w http.ResponseWriter, req *http.Request) {
 	repository := req.PathValue("repository")
 
 	// Get client
-	client := m.getClient(registry)
-	if client == nil {
-		http.Error(w, "No registry client available", http.StatusServiceUnavailable)
+	client, err := m.getClient(registry)
+	if err != nil {
+		// Handle specific error types
+		switch {
+		case errors.Is(err, ErrRegistryNotFound):
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case errors.Is(err, ErrNoRegistryClients):
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -292,9 +314,17 @@ func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request
 	tag := req.PathValue("tag")
 
 	// Get client
-	client := m.getClient(registry)
-	if client == nil {
-		http.Error(w, "No registry client available", http.StatusServiceUnavailable)
+	client, err := m.getClient(registry)
+	if err != nil {
+		// Handle specific error types
+		switch {
+		case errors.Is(err, ErrRegistryNotFound):
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case errors.Is(err, ErrNoRegistryClients):
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -346,9 +376,17 @@ func (m *ApiManager) HandleDescriptor(w http.ResponseWriter, req *http.Request) 
 	tag := req.PathValue("tag")
 
 	// Get client
-	client := m.getClient(registry)
-	if client == nil {
-		http.Error(w, "No registry client available", http.StatusServiceUnavailable)
+	client, err := m.getClient(registry)
+	if err != nil {
+		// Handle specific error types
+		switch {
+		case errors.Is(err, ErrRegistryNotFound):
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case errors.Is(err, ErrNoRegistryClients):
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -388,9 +426,17 @@ func (m *ApiManager) HandleManifest(w http.ResponseWriter, req *http.Request) {
 	tag := req.PathValue("tag")
 
 	// Get client
-	client := m.getClient(registry)
-	if client == nil {
-		http.Error(w, "No registry client available", http.StatusServiceUnavailable)
+	client, err := m.getClient(registry)
+	if err != nil {
+		// Handle specific error types
+		switch {
+		case errors.Is(err, ErrRegistryNotFound):
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case errors.Is(err, ErrNoRegistryClients):
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -427,9 +473,17 @@ func (m *ApiManager) HandleDownload(w http.ResponseWriter, req *http.Request) {
 	tag := req.PathValue("tag")
 
 	// Get client
-	client := m.getClient(registry)
-	if client == nil {
-		http.Error(w, "No registry client available", http.StatusServiceUnavailable)
+	client, err := m.getClient(registry)
+	if err != nil {
+		// Handle specific error types
+		switch {
+		case errors.Is(err, ErrRegistryNotFound):
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case errors.Is(err, ErrNoRegistryClients):
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
