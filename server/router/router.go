@@ -124,6 +124,10 @@ func (r *Router) HandleListTags(w http.ResponseWriter, req *http.Request) {
 	namespace := req.PathValue("namespace")
 	repository := req.PathValue("repository")
 	namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
+	// Check image policy
+	if !r.checkImagePolicy(w, req, namespace, repository) {
+		return
+	}
 	tags, err := r.Client.ListTags(namespacedRepository)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -182,7 +186,7 @@ func (r *Router) HandleDescriptor(w http.ResponseWriter, req *http.Request) {
 	namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
 
 	// Check image policy
-	if !r.checkImagePolicy(w, req, namespace, repository, tag) {
+	if !r.checkImagePolicy(w, req, namespace, repository) {
 		return
 	}
 
@@ -211,7 +215,7 @@ func (r *Router) HandleManifest(w http.ResponseWriter, req *http.Request) {
 	namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
 
 	// Check image policy
-	if !r.checkImagePolicy(w, req, namespace, repository, tag) {
+	if !r.checkImagePolicy(w, req, namespace, repository) {
 		return
 	}
 
@@ -238,7 +242,7 @@ func (r *Router) HandleDownload(w http.ResponseWriter, req *http.Request) {
 	namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
 
 	// Check image policy
-	if !r.checkImagePolicy(w, req, namespace, repository, tag) {
+	if !r.checkImagePolicy(w, req, namespace, repository) {
 		return
 	}
 
@@ -276,7 +280,7 @@ func (r *Router) HandleDownload(w http.ResponseWriter, req *http.Request) {
 }
 
 // checkImagePolicy checks if the requested repository is allowed by policy
-func (r *Router) checkImagePolicy(w http.ResponseWriter, req *http.Request, namespace, repository, tag string) bool {
+func (r *Router) checkImagePolicy(w http.ResponseWriter, req *http.Request, namespace, repository string) bool {
 	// If no policy is configured, allow all repositories
 	if r.ImagePolicy == nil || (len(r.ImagePolicy.AllowedRepositories) == 0 && len(r.ImagePolicy.BlockedRepositories) == 0) {
 		return true
