@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/codekaizen-github/wordpress-plugin-registry-oras/client"
 	"github.com/codekaizen-github/wordpress-plugin-registry-oras/server/policy"
 	"github.com/codekaizen-github/wordpress-plugin-registry-oras/server/router"
 )
@@ -39,58 +38,54 @@ func main() {
 
 // Initialize creates a new client and server based on environment variables
 func Initialize() {
-	// Get required environment variables
-	registry := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY")
-	if registry == "" {
-		panic("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY environment variable is not set")
-	}
-
-	registryUsername := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_USERNAME")
-	if registryUsername == "" {
-		panic("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_USERNAME environment variable is not set")
-	}
-
-	registryPassword := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_PASSWORD")
-	if registryPassword == "" {
-		panic("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_PASSWORD environment variable is not set")
-	}
-
 	// Get port with default fallback
 	port := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_PORT")
 	if port == "" {
 		port = "8080" // Default port if not set
 	}
 
-	// Load image policy (if file exists)
-	var imagePolicy *policy.ImagePolicy
-	policyPath := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_POLICY_PATH")
-	if policyPath == "" {
-		policyPath = "../config/repository_policy.yaml"
+	// Get config file path with default fallback
+	configPath := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_CONFIG_PATH")
+	if configPath == "" {
+		configPath = "../config/config.yaml"
 	}
 
-	imagePolicy, err := policy.LoadImagePolicy(policyPath)
+	// Load configuration file
+	config, err := policy.LoadConfig(configPath)
 	if err != nil {
-		log.Printf("Warning: Could not load repository policy from %s: %v", policyPath, err)
-		log.Println("Running without repository policy restrictions")
-		imagePolicy = &policy.ImagePolicy{} // Empty policy
-	} else {
-		log.Printf("Loaded repository policy with %d allowed and %d blocked repositories",
-			len(imagePolicy.AllowedRepositories), len(imagePolicy.BlockedRepositories))
+		log.Printf("Error loading configuration from %s: %v", configPath, err)
+		log.Println("Using default configuration")
+		// Create default config with single registry from environment variables
+		config = &policy.ConfigFile{
+			Registries: []policy.RegistryCredentials{
+				{
+					Name:     os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY"),
+					Username: os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_USERNAME"),
+					Password: os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_PASSWORD"),
+				},
+			},
+			AllowedRepositories: []string{},
+			BlockedRepositories: []string{},
+		}
 	}
 
-	// Create client
-	apiClient := client.NewClient(
-		registry,
-		registryUsername,
-		registryPassword,
-	)
+	// Check if at least one registry is configured
+	if len(config.Registries) == 0 {
+		panic("No registries configured. Please set up at least one registry in the configuration file or environment variables.")
+	}
 
-	// Create router with client and image policy
-	router := router.NewRouter(apiClient, imagePolicy)
+	// Create image policy from the configuration
+	imagePolicy := &policy.ImagePolicy{
+		AllowedRepositories: config.AllowedRepositories,
+		BlockedRepositories: config.BlockedRepositories,
+	}
 
-	// Create mux and set up routes using the router
+	// Create registry manager
+	manager := router.NewRegistryManager(config, imagePolicy)
+
+	// Create mux and set up routes using the manager
 	mux := http.NewServeMux()
-	router.SetupRoutes(mux)
+	manager.SetupRoutes(mux)
 
 	// Start the server with the configured mux
 	Serve(mux, port)
@@ -102,6 +97,6 @@ func Serve(handler http.Handler, port string) {
 		Addr:    fmt.Sprintf(":%s", port),
 		Handler: handler,
 	}
-	log.Println("Listening...")
-	server.ListenAndServe() // Run the http server
+	log.Printf("Server listening on port %s", port)
+	log.Fatal(server.ListenAndServe()) // Run the http server
 }

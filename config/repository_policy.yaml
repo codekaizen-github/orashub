@@ -1,9 +1,0 @@
-allowed_repositories:
-  - "docker.io/library/nginx"
-  - "ghcr.io/myorg/myapp"
-  - "gcr.io/myproject/*"
-  - "myregistry.example.com/team/service"
-  - "ghcr.io/codekaizen-github/*"
-blocked_repositories:
-  - "docker.io/library/redis"
-  - "gcr.io/evilcorp/*"

@@ -4,8 +4,23 @@ import (
 	"os"
 	"strings"
 
+	"github.com/a8m/envsubst"
 	"gopkg.in/yaml.v3"
 )
+
+// ConfigFile represents the configuration file with registry credentials and repository policies
+type ConfigFile struct {
+	Registries          []RegistryCredentials `yaml:"registries"`
+	AllowedRepositories []string              `yaml:"allowed_repositories"`
+	BlockedRepositories []string              `yaml:"blocked_repositories"`
+}
+
+// RegistryCredentials represents the credentials for a registry
+type RegistryCredentials struct {
+	Name     string `yaml:"name"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+}
 
 // ImagePolicy represents the allowed and blocked repositories
 // Note: Despite the name "ImagePolicy", this is now focused on repository paths rather than images
@@ -14,15 +29,54 @@ type ImagePolicy struct {
 	BlockedRepositories []string `yaml:"blocked_repositories"`
 }
 
-// LoadImagePolicy loads a repository policy from a YAML file
-func LoadImagePolicy(path string) (*ImagePolicy, error) {
-	var policy ImagePolicy
-	file, err := os.ReadFile(path)
+// LoadConfig loads the configuration file with environment variable substitution
+func LoadConfig(path string) (*ConfigFile, error) {
+	var config ConfigFile
+
+	// Read the file
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	err = yaml.Unmarshal(file, &policy)
-	return &policy, err
+
+	// Substitute environment variables
+	expandedData, err := envsubst.Bytes(data)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal the YAML
+	err = yaml.Unmarshal(expandedData, &config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}
+
+// LoadImagePolicy loads a repository policy from a YAML file with environment variable substitution
+func LoadImagePolicy(path string) (*ImagePolicy, error) {
+	var policy ImagePolicy
+
+	// Read the file
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Substitute environment variables
+	expandedData, err := envsubst.Bytes(data)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal the YAML
+	err = yaml.Unmarshal(expandedData, &policy)
+	if err != nil {
+		return nil, err
+	}
+
+	return &policy, nil
 }
 
 // repositoryMatches checks if a repository matches a pattern, supporting wildcards
