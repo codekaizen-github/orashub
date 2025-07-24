@@ -77,8 +77,8 @@ func Initialize() {
 	// Get image policy from the configuration
 	imagePolicy := config.GetImagePolicy()
 
-	// Create registry manager
-	manager := router.NewRegistryManager(config, imagePolicy)
+	// Create API manager
+	manager := router.NewApiManager(config, imagePolicy)
 
 	// Create mux and set up routes using the manager
 	mux := http.NewServeMux()
