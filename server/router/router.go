@@ -10,17 +10,20 @@ import (
 	"path/filepath"
 
 	"github.com/codekaizen-github/wordpress-plugin-registry-oras/client"
+	"github.com/codekaizen-github/wordpress-plugin-registry-oras/server/policy"
 )
 
 // Router handles all HTTP routes and contains the dependencies needed for handlers
 type Router struct {
-	Client    client.ClientInterface
-	Templates *template.Template
+	Client      client.ClientInterface
+	Templates   *template.Template
+	ImagePolicy *policy.ImagePolicy
 }
 
-func NewRouter(client client.ClientInterface) RouterInterface {
+func NewRouter(client client.ClientInterface, imagePolicy *policy.ImagePolicy) RouterInterface {
 	r := &Router{
-		Client: client,
+		Client:      client,
+		ImagePolicy: imagePolicy,
 	}
 
 	// Load templates
@@ -177,6 +180,12 @@ func (r *Router) HandleDescriptor(w http.ResponseWriter, req *http.Request) {
 	repository := req.PathValue("repository")
 	tag := req.PathValue("tag")
 	namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
+
+	// Check image policy
+	if !r.checkImagePolicy(w, req, namespace, repository, tag) {
+		return
+	}
+
 	desc, err := r.Client.GetDescriptor(namespacedRepository, tag)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -200,6 +209,12 @@ func (r *Router) HandleManifest(w http.ResponseWriter, req *http.Request) {
 	repository := req.PathValue("repository")
 	tag := req.PathValue("tag")
 	namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
+
+	// Check image policy
+	if !r.checkImagePolicy(w, req, namespace, repository, tag) {
+		return
+	}
+
 	content, err := r.Client.GetManifest(namespacedRepository, tag)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -221,6 +236,11 @@ func (r *Router) HandleDownload(w http.ResponseWriter, req *http.Request) {
 	repository := req.PathValue("repository")
 	tag := req.PathValue("tag")
 	namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
+
+	// Check image policy
+	if !r.checkImagePolicy(w, req, namespace, repository, tag) {
+		return
+	}
 
 	// Get the layer info which includes all metadata and the reader
 	layerInfo, err := r.Client.GetFirstLayerReader(namespacedRepository, tag)
@@ -253,6 +273,32 @@ func (r *Router) HandleDownload(w http.ResponseWriter, req *http.Request) {
 	if err := layerInfo.Close(); err != nil {
 		log.Printf("Error closing content reader: %v", err)
 	}
+}
+
+// checkImagePolicy checks if the requested image is allowed by policy
+func (r *Router) checkImagePolicy(w http.ResponseWriter, req *http.Request, namespace, repository, tag string) bool {
+	// If no policy is configured, allow all images
+	if r.ImagePolicy == nil || (len(r.ImagePolicy.AllowedImages) == 0 && len(r.ImagePolicy.BlockedImages) == 0) {
+		return true
+	}
+
+	// Construct the full image reference for policy checking
+	registry := req.Host // Use the host from the request as the registry
+	if r.Client.GetRegistry() != "" {
+		// If the client has a registry configured, use that instead
+		registry = r.Client.GetRegistry()
+	}
+
+	fullImageRef := fmt.Sprintf("%s/%s/%s:%s", registry, namespace, repository, tag)
+
+	// Check if the image is allowed by policy
+	if !policy.IsAllowed(fullImageRef, r.ImagePolicy) {
+		log.Printf("Access denied to image %s by policy", fullImageRef)
+		http.Error(w, "Access to this image is denied by policy", http.StatusForbidden)
+		return false
+	}
+
+	return true
 }
 
 // SetupRoutes registers all the HTTP routes for the server

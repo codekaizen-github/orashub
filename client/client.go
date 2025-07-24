@@ -50,6 +50,11 @@ func (c *Client) GetRepository(repository string) (*remote.Repository, error) {
 	repo.Client = c.AuthClient
 	return repo, nil
 }
+
+// GetRegistry returns the registry URL configured for this client
+func (c *Client) GetRegistry() string {
+	return c.Registry
+}
 func (c *Client) GetDescriptor(repository string, tagName string) (*v1.Descriptor, error) {
 	src, err := c.GetRepository(repository)
 	if err != nil {

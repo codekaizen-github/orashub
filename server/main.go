@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/codekaizen-github/wordpress-plugin-registry-oras/client"
+	"github.com/codekaizen-github/wordpress-plugin-registry-oras/server/policy"
 	"github.com/codekaizen-github/wordpress-plugin-registry-oras/server/router"
 )
 
@@ -60,6 +61,23 @@ func Initialize() {
 		port = "8080" // Default port if not set
 	}
 
+	// Load image policy (if file exists)
+	var imagePolicy *policy.ImagePolicy
+	policyPath := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_POLICY_PATH")
+	if policyPath == "" {
+		policyPath = "config/image_policy.yaml"
+	}
+
+	imagePolicy, err := policy.LoadImagePolicy(policyPath)
+	if err != nil {
+		log.Printf("Warning: Could not load image policy from %s: %v", policyPath, err)
+		log.Println("Running without image policy restrictions")
+		imagePolicy = &policy.ImagePolicy{} // Empty policy
+	} else {
+		log.Printf("Loaded image policy with %d allowed and %d blocked images",
+			len(imagePolicy.AllowedImages), len(imagePolicy.BlockedImages))
+	}
+
 	// Create client
 	apiClient := client.NewClient(
 		registry,
@@ -67,8 +85,8 @@ func Initialize() {
 		registryPassword,
 	)
 
-	// Create router with client
-	router := router.NewRouter(apiClient)
+	// Create router with client and image policy
+	router := router.NewRouter(apiClient, imagePolicy)
 
 	// Create mux and set up routes using the router
 	mux := http.NewServeMux()

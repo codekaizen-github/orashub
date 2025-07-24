@@ -18,4 +18,5 @@ type ClientInterface interface {
 	GetManifest(repository string, tagName string) ([]byte, error)
 	GetFirstLayerReader(repository, tagName string) (LayerInfoInterface, error)
 	ListTags(repository string) ([]string, error)
+	GetRegistry() string
 }
