@@ -176,7 +176,8 @@ func (m *ApiManager) HandleApiRoot(w http.ResponseWriter, req *http.Request) {
 
 		// Create a key based on the description and store the full URL
 		key := strings.ToLower(strings.ReplaceAll(route.Description, " ", "_"))
-		endpointsPattern[key] = baseURL + route.Pattern
+		cleanPattern := cleanPatternString(route.Pattern)
+		endpointsPattern[key] = baseURL + cleanPattern
 	}
 
 	// Find example URL from the resource info route
@@ -348,17 +349,27 @@ func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request
 
 	// Build base URL for this resource
 	scheme, host := getServerInfo(req)
-	baseURL := fmt.Sprintf("%s://%s/api/v1/%s/%s/%s/%s",
-		scheme, host, registry, namespace, repository, tag)
+	// scheme and host
+	baseURL := fmt.Sprintf("%s://%s", scheme, host)
+
+	// Get the current request pattern
+	// requestPatternWithValues := fmt.Sprintf("/api/v1/%s/%s/%s/%s", registry, namespace, repository, tag)
+	cleanRequestPattern := strings.TrimPrefix(cleanPatternString(req.Pattern), req.Method+" ")
 
 	// get all endpoints that start with /api/v1/{registry}/{namespace}/{repository}/{tag}
 	endpoints := make(map[string]string)
 	for _, route := range m.Routes {
-		if strings.HasPrefix(route.Pattern, fmt.Sprintf("/api/v1/%s/%s/%s/%s", registry, namespace, repository, tag)) &&
-			strings.Contains(route.Pattern, tag) {
+		// Clean pattern by removing trailing {$} if present
+		cleanRoutePattern := cleanPatternString(route.Pattern)
+
+		// log both
+		log.Printf("Checking route: %s against request pattern: %s", cleanRoutePattern, cleanRequestPattern)
+
+		if strings.HasPrefix(cleanRoutePattern, cleanRequestPattern) {
 			// Create a key based on the description and store the full URL
 			key := strings.ToLower(strings.ReplaceAll(route.Description, " ", "_"))
-			endpoints[key] = baseURL + route.Pattern
+			// interpolate /api/v1/{registry}/{namespace}/{repository}/{tag}
+			endpoints[key] = baseURL + cleanRoutePattern
 		}
 	}
 
@@ -535,4 +546,13 @@ func (m *ApiManager) HandleDownload(w http.ResponseWriter, req *http.Request) {
 	if err := layerInfo.Close(); err != nil {
 		log.Printf("Error closing content reader: %v", err)
 	}
+}
+
+// cleanPatternString removes trailing {$} from a pattern string
+func cleanPatternString(pattern string) string {
+	// Remove trailing /{$}
+	clean := strings.TrimSuffix(pattern, "/{$}")
+	// Remove trailing {$} without slash
+	clean = strings.TrimSuffix(clean, "{$}")
+	return clean
 }
