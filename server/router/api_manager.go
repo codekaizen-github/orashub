@@ -70,16 +70,19 @@ func LoadTemplates(templatesPath string) (*template.Template, error) {
 
 // SetupRoutes registers all HTTP routes for the server
 func (m *ApiManager) SetupRoutes(mux *http.ServeMux) {
-	// Base routes
-	mux.HandleFunc("GET /", m.HandleRoot)
-	mux.HandleFunc("GET /api/v1", m.HandleApiRoot)
-
-	// Registry-specific routes
+	// Registry-specific routes - these handle valid API endpoints
 	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/", m.HandleListTags)
-	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/{tag}", m.HandleResourceInfo)
 	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/{tag}/descriptor", m.HandleDescriptor)
 	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/{tag}/manifest", m.HandleManifest)
 	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/{tag}/download", m.HandleDownload)
+	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/{tag}", m.HandleResourceInfo)
+
+	// Base routes - these are exact matches
+	mux.HandleFunc("GET /", m.HandleRoot)
+	mux.HandleFunc("GET /api/v1", m.HandleApiRoot)
+
+	// Set custom NotFound handler for unmatched routes
+	mux.HandleFunc("GET /api/v1/{rest...}", m.HandleInvalidRoute)
 }
 
 // getClient returns the client for the specified registry
@@ -483,4 +486,10 @@ func (m *ApiManager) HandleDownload(w http.ResponseWriter, req *http.Request) {
 	if err := layerInfo.Close(); err != nil {
 		log.Printf("Error closing content reader: %v", err)
 	}
+}
+
+// HandleInvalidRoute returns a 404 Not Found for routes that don't match any valid patterns
+func (m *ApiManager) HandleInvalidRoute(w http.ResponseWriter, req *http.Request) {
+	log.Printf("Invalid route accessed: %s", req.URL.Path)
+	http.Error(w, "Not Found - Invalid API route", http.StatusNotFound)
 }
