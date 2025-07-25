@@ -73,19 +73,12 @@ func (m *ApiManager) SetupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /", m.HandleRoot)
 	mux.HandleFunc("GET /api/v1", m.HandleApiRoot)
 
-	// Default registry routes (no registry prefix)
-	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/", m.HandleListTags)
-	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}", m.HandleResourceInfo)
-	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}/descriptor", m.HandleDescriptor)
-	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}/manifest", m.HandleManifest)
-	mux.HandleFunc("GET /api/v1/{namespace}/{repository}/{tag}/download", m.HandleDownload)
-
 	// Registry-specific routes
-	mux.HandleFunc("GET /api/v1/registry/{registry}/{namespace}/{repository}/", m.HandleListTags)
-	mux.HandleFunc("GET /api/v1/registry/{registry}/{namespace}/{repository}/{tag}", m.HandleResourceInfo)
-	mux.HandleFunc("GET /api/v1/registry/{registry}/{namespace}/{repository}/{tag}/descriptor", m.HandleDescriptor)
-	mux.HandleFunc("GET /api/v1/registry/{registry}/{namespace}/{repository}/{tag}/manifest", m.HandleManifest)
-	mux.HandleFunc("GET /api/v1/registry/{registry}/{namespace}/{repository}/{tag}/download", m.HandleDownload)
+	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/", m.HandleListTags)
+	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/{tag}", m.HandleResourceInfo)
+	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/{tag}/descriptor", m.HandleDescriptor)
+	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/{tag}/manifest", m.HandleManifest)
+	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/{tag}/download", m.HandleDownload)
 }
 
 // getClient returns the client for the specified registry, or the first available client if none specified
@@ -100,21 +93,9 @@ func (m *ApiManager) getClient(registry string) (client.ClientInterface, error) 
 		// If a specific registry was requested but not found, return an error
 		return nil, fmt.Errorf("%w: '%s'", ErrRegistryNotFound, registry)
 	}
-
-	// If no registry specified, return the first available client
-	if len(m.Clients) > 0 {
-		for _, client := range m.Clients {
-			return client, nil
-		}
-	}
-
 	return nil, ErrNoRegistryClients
 } // HandleRoot handles the root endpoint
 func (m *ApiManager) HandleRoot(w http.ResponseWriter, req *http.Request) {
-	if req.URL.Path != "/" {
-		http.NotFound(w, req)
-		return
-	}
 
 	// Check if we have any clients configured
 	if len(m.Clients) == 0 {
@@ -164,19 +145,16 @@ func (m *ApiManager) HandleApiRoot(w http.ResponseWriter, req *http.Request) {
 		"api_version": "v1",
 		"description": "WordPress Plugin Registry ORAS API",
 		"usage": map[string]string{
-			"resource_path": baseURL + "/{namespace}/{repository}/{tag}",
-			"example":       baseURL + "/codekaizen-github/wp-github-gist-block/latest",
+			"resource_path": baseURL + "{registry}/{namespace}/{repository}/{tag}",
+			"example":       baseURL + "ghcr.io/codekaizen-github/wp-github-gist-block/latest",
 		},
 		"endpoints_pattern": map[string]string{
-			"resource_info": baseURL + "/{namespace}/{repository}/{tag}",
-			"descriptor":    baseURL + "/{namespace}/{repository}/{tag}/descriptor",
-			"manifest":      baseURL + "/{namespace}/{repository}/{tag}/manifest",
-			"annotations":   baseURL + "/{namespace}/{repository}/{tag}/annotations",
-			"download":      baseURL + "/{namespace}/{repository}/{tag}/download",
-		},
-		"registry_specific": map[string]string{
-			"pattern": baseURL + "/registry/{registry}/{namespace}/{repository}/{tag}",
-			"example": baseURL + "/registry/docker.io/library/nginx/latest",
+			"list_tags":     baseURL + "{registry}/{namespace}/{repository}/",
+			"resource_info": baseURL + "{registry}/{namespace}/{repository}/{tag}",
+			"descriptor":    baseURL + "{registry}/{namespace}/{repository}/{tag}/descriptor",
+			"manifest":      baseURL + "{registry}/{namespace}/{repository}/{tag}/manifest",
+			"annotations":   baseURL + "{registry}/{namespace}/{repository}/{tag}/annotations",
+			"download":      baseURL + "{registry}/{namespace}/{repository}/{tag}/download",
 		},
 		"available_registries": m.getAvailableRegistries(),
 	}
