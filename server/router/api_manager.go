@@ -75,11 +75,11 @@ func (m *ApiManager) defineRoutes() {
 	m.Routes = []RouteDefinition{
 		{Method: "GET", Pattern: "/{$}", Description: "Root endpoint", Handler: m.HandleRoot},
 		{Method: "GET", Pattern: "/api/v1/{$}", Description: "API root information", Handler: m.HandleApiRoot},
-		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}", Description: "List tags", Handler: m.HandleListTags},
-		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}/{tag}", Description: "Resource info", Handler: m.HandleResourceInfo},
-		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}/{tag}/descriptor", Description: "Descriptor", Handler: m.HandleDescriptor},
-		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}/{tag}/manifest", Description: "Manifest", Handler: m.HandleManifest},
-		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}/{tag}/download", Description: "Download", Handler: m.HandleDownload},
+		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}/{$}", Description: "List tags", Handler: m.HandleListTags},
+		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}/{tag}/{$}", Description: "Resource info", Handler: m.HandleResourceInfo},
+		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}/{tag}/descriptor/{$}", Description: "Descriptor", Handler: m.HandleDescriptor},
+		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}/{tag}/manifest/{$}", Description: "Manifest", Handler: m.HandleManifest},
+		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}/{tag}/download/{$}", Description: "Download", Handler: m.HandleDownload},
 	}
 }
 
@@ -101,6 +101,12 @@ func (m *ApiManager) SetupRoutes(mux *http.ServeMux) {
 		log.Printf("Registering route: %s", pattern)
 		mux.HandleFunc(pattern, route.Handler)
 	}
+
+	// // Add a catch-all handler for any routes that don't match
+	// mux.HandleFunc("GET /api/v1/{path...}", func(w http.ResponseWriter, r *http.Request) {
+	// 	log.Printf("404 Not Found: %s", r.URL.Path)
+	// 	http.Error(w, "Not Found - Invalid route", http.StatusNotFound)
+	// })
 }
 
 // getClient returns the client for the specified registry
@@ -263,6 +269,10 @@ func (m *ApiManager) HandleListTags(w http.ResponseWriter, req *http.Request) {
 	registry := req.PathValue("registry")
 	namespace := req.PathValue("namespace")
 	repository := req.PathValue("repository")
+
+	// Debug logging
+	log.Printf("HandleListTags called with registry=%s, namespace=%s, repository=%s", registry, namespace, repository)
+
 	// Get client
 	client, err := m.getClient(registry)
 	if err != nil {
