@@ -369,7 +369,12 @@ func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request
 			// Create a key based on the description and store the full URL
 			key := strings.ToLower(strings.ReplaceAll(route.Description, " ", "_"))
 			// interpolate /api/v1/{registry}/{namespace}/{repository}/{tag}
-			endpoints[key] = baseURL + cleanRoutePattern
+			endpoints[key] = baseURL + interpolatePattern(cleanRoutePattern, map[string]string{
+				"registry":   registry,
+				"namespace":  namespace,
+				"repository": repository,
+				"tag":        tag,
+			})
 		}
 	}
 
@@ -555,4 +560,13 @@ func cleanPatternString(pattern string) string {
 	// Remove trailing {$} without slash
 	clean = strings.TrimSuffix(clean, "{$}")
 	return clean
+}
+
+func interpolatePattern(pattern string, params map[string]string) string {
+	result := pattern
+	for key, value := range params {
+		placeholder := fmt.Sprintf("{%s}", key)
+		result = strings.ReplaceAll(result, placeholder, value)
+	}
+	return result
 }
