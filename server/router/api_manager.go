@@ -82,7 +82,7 @@ func (m *ApiManager) SetupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1", m.HandleApiRoot)
 
 	// Set custom NotFound handler for unmatched routes
-	mux.HandleFunc("GET /api/v1/{rest...}", m.HandleInvalidRoute)
+	mux.HandleFunc("GET /api/{rest...}", m.HandleInvalidRoute)
 }
 
 // getClient returns the client for the specified registry
