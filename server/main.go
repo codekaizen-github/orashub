@@ -53,25 +53,7 @@ func Initialize() {
 	// Load configuration file
 	config, err := policy.LoadConfig(configPath)
 	if err != nil {
-		log.Printf("Error loading configuration from %s: %v", configPath, err)
-		log.Println("Using default configuration")
-		// Create default config with single registry from environment variables
-		config = &policy.ConfigFile{
-			Registries: []policy.RegistryCredentials{
-				{
-					Name:     os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY"),
-					Username: os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_USERNAME"),
-					Password: os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_PASSWORD"),
-				},
-			},
-			AllowedRepositories: []string{},
-			BlockedRepositories: []string{},
-		}
-	}
-
-	// Check if at least one registry is configured
-	if len(config.Registries) == 0 {
-		panic("No registries configured. Please set up at least one registry in the configuration file or environment variables.")
+		log.Fatalf("Error loading configuration: %v", err)
 	}
 
 	// Get image policy from the configuration

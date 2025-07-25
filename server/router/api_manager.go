@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/codekaizen-github/wordpress-plugin-registry-oras/client"
 	"github.com/codekaizen-github/wordpress-plugin-registry-oras/server/policy"
@@ -29,6 +30,11 @@ type ApiManager struct {
 
 // NewApiManager creates a new API manager with the given configuration
 func NewApiManager(config *policy.ConfigFile, imagePolicy *policy.ImagePolicy, templates *template.Template) *ApiManager {
+	// Check if there are any registries configured - this is a fatal error if not
+	if len(config.Registries) == 0 {
+		log.Fatalf("Fatal error: No registries configured. Please specify at least one registry in the configuration.")
+	}
+
 	manager := &ApiManager{
 		Clients:     make(map[string]client.ClientInterface),
 		ImagePolicy: imagePolicy,
@@ -37,11 +43,6 @@ func NewApiManager(config *policy.ConfigFile, imagePolicy *policy.ImagePolicy, t
 
 	// Create clients for each registry in the config
 	for _, registry := range config.Registries {
-		// Skip registries with empty credentials
-		if registry.Username == "" && registry.Password == "" {
-			log.Printf("Skipping registry %s: no credentials provided", registry.Name)
-			continue
-		}
 
 		// Create client for this registry
 		apiClient := client.NewClient(
@@ -81,19 +82,17 @@ func (m *ApiManager) SetupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/{tag}/download", m.HandleDownload)
 }
 
-// getClient returns the client for the specified registry, or the first available client if none specified
-// Returns error of type ErrRegistryNotFound if a specific registry was requested but not found
+// getClient returns the client for the specified registry
+// Returns error of type ErrRegistryNotFound if the registry was not found
 // Returns error of type ErrNoRegistryClients if no clients are available
 func (m *ApiManager) getClient(registry string) (client.ClientInterface, error) {
-	// If a registry was specified, try to get that specific client
-	if registry != "" {
-		if client, ok := m.Clients[registry]; ok {
-			return client, nil
-		}
-		// If a specific registry was requested but not found, return an error
-		return nil, fmt.Errorf("%w: '%s'", ErrRegistryNotFound, registry)
+	// Try to get the client for the specified registry
+	if client, ok := m.Clients[registry]; ok {
+		return client, nil
 	}
-	return nil, ErrNoRegistryClients
+
+	// If the registry doesn't exist in our clients map
+	return nil, fmt.Errorf("%w: '%s'", ErrRegistryNotFound, registry)
 } // HandleRoot handles the root endpoint
 func (m *ApiManager) HandleRoot(w http.ResponseWriter, req *http.Request) {
 
@@ -184,32 +183,37 @@ func (m *ApiManager) checkImagePolicy(w http.ResponseWriter, req *http.Request, 
 		return true
 	}
 
-	// Get the registry host to use for policy checking
-	registryHost := registry
-	if registryHost == "" {
-		// If no registry specified, get the registry from the client we would use
-		client, err := m.getClient("")
-		if err != nil {
-			// No clients available, can't check policy
-			switch {
-			case errors.Is(err, ErrNoRegistryClients):
-				http.Error(w, err.Error(), http.StatusServiceUnavailable)
-			default:
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-			return false
-		}
-		registryHost = client.GetRegistry()
+	// Registry should never be empty - this is a requirement
+	if registry == "" {
+		log.Printf("Error: Empty registry in checkImagePolicy")
+		http.Error(w, "Registry is required for policy check", http.StatusBadRequest)
+		return false
 	}
 
 	// Create repository path without the tag
-	repositoryPath := fmt.Sprintf("%s/%s/%s", registryHost, namespace, repository)
+	// Important: Do NOT include the registry in the path again if it's already part of namespace
+	if strings.HasPrefix(namespace, registry+"/") {
+		// The namespace already contains the registry, don't duplicate
+		repositoryPath := fmt.Sprintf("%s/%s", namespace, repository)
+		log.Printf("Repository path for policy check: %s", repositoryPath)
 
-	// Check if the repository is allowed by policy
-	if !policy.IsAllowed(repositoryPath, m.ImagePolicy) {
-		log.Printf("Access denied to repository %s by policy", repositoryPath)
-		http.Error(w, "Access to this repository is denied by policy", http.StatusForbidden)
-		return false
+		// Check if the repository is allowed by policy
+		if !policy.IsAllowed(repositoryPath, m.ImagePolicy) {
+			log.Printf("Access denied to repository %s by policy", repositoryPath)
+			http.Error(w, "Access to this repository is denied by policy", http.StatusForbidden)
+			return false
+		}
+	} else {
+		// Normal case, combine registry with namespace and repository
+		repositoryPath := fmt.Sprintf("%s/%s/%s", registry, namespace, repository)
+		log.Printf("Repository path for policy check: %s", repositoryPath)
+
+		// Check if the repository is allowed by policy
+		if !policy.IsAllowed(repositoryPath, m.ImagePolicy) {
+			log.Printf("Access denied to repository %s by policy", repositoryPath)
+			http.Error(w, "Access to this repository is denied by policy", http.StatusForbidden)
+			return false
+		}
 	}
 
 	return true
@@ -218,10 +222,9 @@ func (m *ApiManager) checkImagePolicy(w http.ResponseWriter, req *http.Request, 
 // HandleListTags handles the list tags endpoint for both default and registry-specific routes
 func (m *ApiManager) HandleListTags(w http.ResponseWriter, req *http.Request) {
 	// Extract parameters
-	registry := req.PathValue("registry") // Will be empty for default routes
+	registry := req.PathValue("registry")
 	namespace := req.PathValue("namespace")
 	repository := req.PathValue("repository")
-
 	// Get client
 	client, err := m.getClient(registry)
 	if err != nil {
@@ -271,11 +274,10 @@ func (m *ApiManager) HandleListTags(w http.ResponseWriter, req *http.Request) {
 // HandleResourceInfo handles the resource info endpoint for both default and registry-specific routes
 func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request) {
 	// Extract parameters
-	registry := req.PathValue("registry") // Will be empty for default routes
+	registry := req.PathValue("registry")
 	namespace := req.PathValue("namespace")
 	repository := req.PathValue("repository")
 	tag := req.PathValue("tag")
-
 	// Get client
 	client, err := m.getClient(registry)
 	if err != nil {
@@ -298,14 +300,8 @@ func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request
 
 	// Build base URL for this resource
 	scheme, host := getServerInfo(req)
-	var baseURL string
-	if registry == "" {
-		baseURL = fmt.Sprintf("%s://%s/api/v1/%s/%s/%s",
-			scheme, host, namespace, repository, tag)
-	} else {
-		baseURL = fmt.Sprintf("%s://%s/api/v1/registry/%s/%s/%s/%s",
-			scheme, host, registry, namespace, repository, tag)
-	}
+	baseURL := fmt.Sprintf("%s://%s/api/v1/%s/%s/%s/%s",
+		scheme, host, registry, namespace, repository, tag)
 
 	// Create API directory response
 	response := map[string]interface{}{
@@ -333,7 +329,7 @@ func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request
 // HandleDescriptor handles the descriptor endpoint for both default and registry-specific routes
 func (m *ApiManager) HandleDescriptor(w http.ResponseWriter, req *http.Request) {
 	// Extract parameters
-	registry := req.PathValue("registry") // Will be empty for default routes
+	registry := req.PathValue("registry")
 	namespace := req.PathValue("namespace")
 	repository := req.PathValue("repository")
 	tag := req.PathValue("tag")
@@ -383,11 +379,10 @@ func (m *ApiManager) HandleDescriptor(w http.ResponseWriter, req *http.Request) 
 // HandleManifest handles the manifest endpoint for both default and registry-specific routes
 func (m *ApiManager) HandleManifest(w http.ResponseWriter, req *http.Request) {
 	// Extract parameters
-	registry := req.PathValue("registry") // Will be empty for default routes
+	registry := req.PathValue("registry")
 	namespace := req.PathValue("namespace")
 	repository := req.PathValue("repository")
 	tag := req.PathValue("tag")
-
 	// Get client
 	client, err := m.getClient(registry)
 	if err != nil {
@@ -430,7 +425,7 @@ func (m *ApiManager) HandleManifest(w http.ResponseWriter, req *http.Request) {
 // HandleDownload handles the download endpoint for both default and registry-specific routes
 func (m *ApiManager) HandleDownload(w http.ResponseWriter, req *http.Request) {
 	// Extract parameters
-	registry := req.PathValue("registry") // Will be empty for default routes
+	registry := req.PathValue("registry")
 	namespace := req.PathValue("namespace")
 	repository := req.PathValue("repository")
 	tag := req.PathValue("tag")

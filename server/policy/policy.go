@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"log"
 	"os"
 	"strings"
 
@@ -75,24 +76,32 @@ func repositoryMatches(pattern, repository string) bool {
 // First checks if it's explicitly blocked, then if it's explicitly allowed
 // Returns false by default (deny by default)
 func IsAllowed(repository string, policy *ImagePolicy) bool {
+	// Log the repository being checked
+	log.Printf("Policy check for repository: %s", repository)
+
 	// Check if the repository is in the blocklist
 	for _, blocked := range policy.BlockedRepositories {
 		if repositoryMatches(blocked, repository) {
+			log.Printf("Repository %s matched blocked pattern %s", repository, blocked)
 			return false
 		}
 	}
 
 	if len(policy.AllowedRepositories) == 0 {
+		log.Printf("No allowed repositories configured, allowing %s by default", repository)
 		return true // If no allowed repositories, allow all
 	}
 
 	// Check if the repository is in the allowlist
 	for _, allowed := range policy.AllowedRepositories {
+		log.Printf("Checking if %s matches allowed pattern %s", repository, allowed)
 		if repositoryMatches(allowed, repository) {
+			log.Printf("Repository %s matched allowed pattern %s", repository, allowed)
 			return true
 		}
 	}
 
 	// Default deny
+	log.Printf("Repository %s did not match any allowed patterns, denying access", repository)
 	return false
 }
