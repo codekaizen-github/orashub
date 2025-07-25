@@ -21,11 +21,20 @@ var (
 	ErrNoRegistryClients = errors.New("no registry clients available")
 )
 
+// RouteDefinition defines an API route and associated handler
+type RouteDefinition struct {
+	Method      string
+	Pattern     string
+	Description string
+	Handler     func(http.ResponseWriter, *http.Request)
+}
+
 // ApiManager manages the API routing and client interactions
 type ApiManager struct {
 	Clients     map[string]client.ClientInterface
 	Templates   *template.Template
 	ImagePolicy *policy.ImagePolicy
+	Routes      []RouteDefinition
 }
 
 // NewApiManager creates a new API manager with the given configuration
@@ -55,7 +64,23 @@ func NewApiManager(config *policy.ConfigFile, imagePolicy *policy.ImagePolicy, t
 		manager.Clients[registry.Name] = apiClient
 	}
 
+	// Define routes after creating the manager so handlers can be properly bound
+	manager.defineRoutes()
+
 	return manager
+}
+
+// defineRoutes initializes the route definitions
+func (m *ApiManager) defineRoutes() {
+	m.Routes = []RouteDefinition{
+		{Method: "GET", Pattern: "/{$}", Description: "Root endpoint", Handler: m.HandleRoot},
+		{Method: "GET", Pattern: "/api/v1/{$}", Description: "API root information", Handler: m.HandleApiRoot},
+		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}", Description: "List tags", Handler: m.HandleListTags},
+		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}/{tag}", Description: "Resource info", Handler: m.HandleResourceInfo},
+		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}/{tag}/descriptor", Description: "Descriptor", Handler: m.HandleDescriptor},
+		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}/{tag}/manifest", Description: "Manifest", Handler: m.HandleManifest},
+		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}/{tag}/download", Description: "Download", Handler: m.HandleDownload},
+	}
 }
 
 // LoadTemplates loads all templates from the templates directory
@@ -70,16 +95,12 @@ func LoadTemplates(templatesPath string) (*template.Template, error) {
 
 // SetupRoutes registers all HTTP routes for the server
 func (m *ApiManager) SetupRoutes(mux *http.ServeMux) {
-	// Base routes - these are exact matches
-	mux.HandleFunc("GET /{$}", m.HandleRoot)
-	mux.HandleFunc("GET /api/v1/{$}", m.HandleApiRoot)
-	// Registry-specific routes - these handle valid API endpoints
-	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/{$}", m.HandleListTags)
-	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/{tag}/descriptor/{$}", m.HandleDescriptor)
-	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/{tag}/manifest/{$}", m.HandleManifest)
-	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/{tag}/download/{$}", m.HandleDownload)
-	mux.HandleFunc("GET /api/v1/{registry}/{namespace}/{repository}/{tag}/{$}", m.HandleResourceInfo)
-
+	// Register all routes from our routes data structure
+	for _, route := range m.Routes {
+		pattern := fmt.Sprintf("%s %s", route.Method, route.Pattern)
+		log.Printf("Registering route: %s", pattern)
+		mux.HandleFunc(pattern, route.Handler)
+	}
 }
 
 // getClient returns the client for the specified registry
@@ -137,24 +158,41 @@ func (m *ApiManager) HandleApiRoot(w http.ResponseWriter, req *http.Request) {
 	}
 
 	scheme, host := getServerInfo(req)
-	baseURL := fmt.Sprintf("%s://%s/api/v1", scheme, host)
+	baseURL := fmt.Sprintf("%s://%s", scheme, host)
+
+	// Create the endpoints_pattern map dynamically from our routes
+	endpointsPattern := make(map[string]string)
+	for _, route := range m.Routes {
+		// Skip the root and API root routes
+		if route.Pattern == "/" || route.Pattern == "/api/v1" {
+			continue
+		}
+
+		// Create a key based on the description and store the full URL
+		key := strings.ToLower(strings.ReplaceAll(route.Description, " ", "_"))
+		endpointsPattern[key] = baseURL + route.Pattern
+	}
+
+	// Find example URL from the resource info route
+	exampleURL := baseURL + "/api/v1/ghcr.io/codekaizen-github/wp-github-gist-block/latest"
+	resourcePath := baseURL + "/api/v1{registry}/{namespace}/{repository}/{tag}"
+
+	for _, route := range m.Routes {
+		if strings.Contains(route.Description, "Resource info") {
+			resourcePath = baseURL + route.Pattern
+			break
+		}
+	}
 
 	// Create API root response
 	response := map[string]interface{}{
 		"api_version": "v1",
 		"description": "WordPress Plugin Registry ORAS API",
 		"usage": map[string]string{
-			"resource_path": baseURL + "{registry}/{namespace}/{repository}/{tag}",
-			"example":       baseURL + "ghcr.io/codekaizen-github/wp-github-gist-block/latest",
+			"resource_path": resourcePath,
+			"example":       exampleURL,
 		},
-		"endpoints_pattern": map[string]string{
-			"list_tags":     baseURL + "{registry}/{namespace}/{repository}/",
-			"resource_info": baseURL + "{registry}/{namespace}/{repository}/{tag}",
-			"descriptor":    baseURL + "{registry}/{namespace}/{repository}/{tag}/descriptor",
-			"manifest":      baseURL + "{registry}/{namespace}/{repository}/{tag}/manifest",
-			"annotations":   baseURL + "{registry}/{namespace}/{repository}/{tag}/annotations",
-			"download":      baseURL + "{registry}/{namespace}/{repository}/{tag}/download",
-		},
+		"endpoints_pattern":    endpointsPattern,
 		"available_registries": m.getAvailableRegistries(),
 	}
 
@@ -303,18 +341,22 @@ func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request
 	baseURL := fmt.Sprintf("%s://%s/api/v1/%s/%s/%s/%s",
 		scheme, host, registry, namespace, repository, tag)
 
+	// get all endpoints that start with /api/v1/{registry}/{namespace}/{repository}/{tag}
+	endpoints := make(map[string]string)
+	for _, route := range m.Routes {
+		if strings.HasPrefix(route.Pattern, fmt.Sprintf("/api/v1/%s/%s/%s/%s", registry, namespace, repository, tag)) &&
+			strings.Contains(route.Pattern, tag) {
+			// Create a key based on the description and store the full URL
+			key := strings.ToLower(strings.ReplaceAll(route.Description, " ", "_"))
+			endpoints[key] = baseURL + route.Pattern
+		}
+	}
+
 	// Create API directory response
 	response := map[string]interface{}{
-		"resource": fmt.Sprintf("%s/%s:%s", namespace, repository, tag),
-		"registry": client.GetRegistry(),
-		"endpoints": map[string]string{
-			"self":        baseURL,
-			"descriptor":  baseURL + "/descriptor",
-			"manifest":    baseURL + "/manifest",
-			"annotations": baseURL + "/annotations",
-			"download":    baseURL + "/download",
-		},
-		"description": "WordPress Plugin Registry ORAS API",
+		"registry":  client.GetRegistry(),
+		"resource":  fmt.Sprintf("%s/%s:%s", namespace, repository, tag),
+		"endpoints": endpoints,
 	}
 
 	// Return JSON response
