@@ -77,8 +77,19 @@ func Initialize() {
 	// Get image policy from the configuration
 	imagePolicy := config.GetImagePolicy()
 
+	// Load templates
+	templatesPath := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_TEMPLATES_PATH")
+	if templatesPath == "" {
+		templatesPath = "templates" // Default templates path
+	}
+	templates, err := router.LoadTemplates(templatesPath)
+	if err != nil {
+		log.Printf("Warning: Error loading templates: %v", err)
+		// Continue without templates - the server can still function for API calls
+	}
+
 	// Create API manager
-	manager := router.NewApiManager(config, imagePolicy)
+	manager := router.NewApiManager(config, imagePolicy, templates)
 
 	// Create mux and set up routes using the manager
 	mux := http.NewServeMux()

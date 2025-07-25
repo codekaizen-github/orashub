@@ -28,10 +28,11 @@ type ApiManager struct {
 }
 
 // NewApiManager creates a new API manager with the given configuration
-func NewApiManager(config *policy.ConfigFile, imagePolicy *policy.ImagePolicy) *ApiManager {
+func NewApiManager(config *policy.ConfigFile, imagePolicy *policy.ImagePolicy, templates *template.Template) *ApiManager {
 	manager := &ApiManager{
 		Clients:     make(map[string]client.ClientInterface),
 		ImagePolicy: imagePolicy,
+		Templates:   templates,
 	}
 
 	// Create clients for each registry in the config
@@ -53,22 +54,17 @@ func NewApiManager(config *policy.ConfigFile, imagePolicy *policy.ImagePolicy) *
 		manager.Clients[registry.Name] = apiClient
 	}
 
-	// Load templates
-	if err := manager.loadTemplates(); err != nil {
-		log.Printf("Warning: %v", err)
-	}
-
 	return manager
 }
 
-// loadTemplates loads all templates from the templates directory
-func (m *ApiManager) loadTemplates() error {
-	var err error
-	m.Templates, err = template.ParseGlob("templates/*.html")
+// LoadTemplates loads all templates from the templates directory
+// This is a utility function to load templates before creating an ApiManager
+func LoadTemplates(templatesPath string) (*template.Template, error) {
+	templates, err := template.ParseGlob(filepath.Join(templatesPath, "*.html"))
 	if err != nil {
-		return fmt.Errorf("error loading templates: %v", err)
+		return nil, fmt.Errorf("error loading templates: %v", err)
 	}
-	return nil
+	return templates, nil
 }
 
 // SetupRoutes registers all HTTP routes for the server
@@ -137,29 +133,18 @@ func (m *ApiManager) HandleRoot(w http.ResponseWriter, req *http.Request) {
 		ApiURL: apiURL,
 	}
 
-	// Execute template from cache
+	// Execute template
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
+
 	if m.Templates != nil {
 		if err := m.Templates.ExecuteTemplate(w, "index.html", data); err != nil {
 			log.Printf("Error executing template: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
 		}
 	} else {
-		// Fallback to parsing template directly if cache failed
-		tmplPath := filepath.Join("templates", "index.html")
-		tmpl, err := template.ParseFiles(tmplPath)
-		if err != nil {
-			log.Printf("Error parsing template: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-		if err := tmpl.Execute(w, data); err != nil {
-			log.Printf("Error executing template: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
+		// No templates were loaded, use fallback
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
 
