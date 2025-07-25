@@ -1,22 +1,11 @@
 # Registry credentials configuration
 registries:
-  - name: "${PRIMARY_REGISTRY:-docker.io}"
-    username: "${PRIMARY_REGISTRY_USERNAME:-}"
-    password: "${PRIMARY_REGISTRY_PASSWORD:-}"
-  - name: "${SECONDARY_REGISTRY:-ghcr.io}"
-    username: "${SECONDARY_REGISTRY_USERNAME:-}"
-    password: "${SECONDARY_REGISTRY_PASSWORD:-}"
-  - name: "${CLOUD_REGISTRY:-gcr.io}"
-    username: "${CLOUD_REGISTRY_USERNAME:-}"
-    password: "${CLOUD_REGISTRY_PASSWORD:-}"
+  - name: "${WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY}"
+    username: "${WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_USERNAME}"
+    password: "${WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_PASSWORD}"
 
 # Repository access policy
 allowed_repositories:
-  - "${PRIMARY_REGISTRY:-docker.io}/library/${NGINX_IMAGE:-nginx}"
-  - "${SECONDARY_REGISTRY:-ghcr.io}/${GITHUB_ORG:-myorg}/myapp"
-  - "${CLOUD_REGISTRY:-gcr.io}/${PROJECT_ID:-myproject}/*"
-  - "${INTERNAL_REGISTRY:-myregistry.example.com}/${TEAM:-team}/${SERVICE:-service}"
-  - "${SECONDARY_REGISTRY:-ghcr.io}/${GITHUB_USER:-codekaizen-github}/*"
-blocked_repositories:
-  - "${PRIMARY_REGISTRY:-docker.io}/library/${BLOCKED_IMAGE:-redis}"
-  - "${CLOUD_REGISTRY:-gcr.io}/${BLOCKED_ORG:-evilcorp}/*"
+  - "${WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY}/codekaizen-github/*"
+blocked_repositories: []
+
