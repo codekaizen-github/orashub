@@ -304,11 +304,42 @@ func (m *ApiManager) HandleListTags(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// Build base URL for tag resources
+	scheme, host := getServerInfo(req)
+	baseURL := fmt.Sprintf("%s://%s", scheme, host)
+
+	// Find resource info pattern for building tag links
+	resourceInfoPattern := ""
+	for _, route := range m.Routes {
+		if strings.Contains(route.Description, "Resource info") {
+			resourceInfoPattern = cleanPatternString(route.Pattern)
+			log.Printf("Found resource info pattern for tag links: %s", resourceInfoPattern)
+			break
+		}
+	}
+
+	// Create endpoints map with links to each tag's resource info
+	tagEndpoints := make(map[string]string)
+	for _, tag := range tags {
+		if resourceInfoPattern != "" {
+			// Create URL for this tag by interpolating the resource info pattern
+			tagURL := baseURL + interpolatePattern(resourceInfoPattern, map[string]string{
+				"registry":   registry,
+				"namespace":  namespace,
+				"repository": repository,
+				"tag":        tag,
+			})
+			tagEndpoints[tag] = tagURL
+			log.Printf("Created endpoint for tag %s: %s", tag, tagURL)
+		}
+	}
+
 	// Build response
 	response := map[string]interface{}{
 		"repository": namespacedRepository,
 		"registry":   client.GetRegistry(),
 		"tags":       tags,
+		"endpoints":  tagEndpoints,
 	}
 
 	// Return response
