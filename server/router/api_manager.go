@@ -174,42 +174,16 @@ func (m *ApiManager) HandleApiRoot(w http.ResponseWriter, req *http.Request) {
 			continue
 		}
 
-		// Create a key based on the description and store the full URL
+		// Create a key based on the description and store the full URL with placeholders intact
 		key := strings.ToLower(strings.ReplaceAll(route.Description, " ", "_"))
 		cleanPattern := cleanPatternString(route.Pattern)
 		endpointsPattern[key] = baseURL + cleanPattern
 	}
 
-	// Use a known resource info pattern for the API examples
-	resourceInfoRoute := m.getRouteByDescription("Resource info")
-	resourcePath := ""
-	var exampleURL string
-
-	if resourceInfoRoute != nil {
-		resourcePath = baseURL + cleanPatternString(resourceInfoRoute.Pattern)
-
-		// Create example URL using interpolation
-		exampleValues := map[string]string{
-			"registry":   "ghcr.io",
-			"namespace":  "codekaizen-github",
-			"repository": "wp-github-gist-block",
-			"tag":        "latest",
-		}
-		exampleURL = baseURL + interpolatePattern(cleanPatternString(resourceInfoRoute.Pattern), exampleValues)
-	} else {
-		// Fallback in case pattern isn't found
-		resourcePath = baseURL + "/api/v1/{registry}/{namespace}/{repository}/{tag}"
-		exampleURL = baseURL + "/api/v1/ghcr.io/codekaizen-github/wp-github-gist-block/latest"
-	}
-
 	// Create API root response
 	response := map[string]interface{}{
-		"api_version": "v1",
-		"description": "WordPress Plugin Registry ORAS API",
-		"usage": map[string]string{
-			"resource_path": resourcePath,
-			"example":       exampleURL,
-		},
+		"api_version":          "v1",
+		"description":          "WordPress Plugin Registry ORAS API",
 		"endpoints_pattern":    endpointsPattern,
 		"available_registries": m.getAvailableRegistries(),
 	}
@@ -320,25 +294,15 @@ func (m *ApiManager) HandleListTags(w http.ResponseWriter, req *http.Request) {
 	scheme, host := getServerInfo(req)
 	baseURL := fmt.Sprintf("%s://%s", scheme, host)
 
-	// Find resource info pattern for building tag links
-	resourceInfoRoute := m.getRouteByDescription("Resource info")
-	resourceInfoPattern := ""
-	if resourceInfoRoute != nil {
-		resourceInfoPattern = cleanPatternString(resourceInfoRoute.Pattern)
-		log.Printf("Found resource info pattern for tag links: %s", resourceInfoPattern)
-	}
+	// Create a template URL for tags with placeholders
+	tagUrlTemplate := baseURL + req.URL.Path + "{tag}"
 
 	// Create endpoints map with links to each tag's resource info
 	tagEndpoints := make(map[string]string)
 	for _, tag := range tags {
-		if resourceInfoPattern != "" {
-			// Create URL for this tag by interpolating the resource info pattern
-			tagURL := baseURL + interpolatePattern(resourceInfoPattern, pathValues)
-			// Override the tag value with the current tag
-			tagURL = strings.ReplaceAll(tagURL, "{tag}", tag)
-			tagEndpoints[tag] = tagURL
-			log.Printf("Created endpoint for tag %s: %s", tag, tagURL)
-		}
+		// Create URL for this tag by simply replacing {tag} with the actual tag
+		tagURL := strings.ReplaceAll(tagUrlTemplate, "{tag}", tag)
+		tagEndpoints[tag] = tagURL
 	}
 
 	// Build response
@@ -392,12 +356,9 @@ func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request
 	// scheme and host
 	baseURL := fmt.Sprintf("%s://%s", scheme, host)
 
-	// Get the current request pattern
-	// requestPatternWithValues := fmt.Sprintf("/api/v1/%s/%s/%s/%s", registry, namespace, repository, tag)
-	cleanRequestPattern := strings.TrimPrefix(cleanPatternString(req.Pattern), req.Method+" ")
-
-	// get all endpoints that start with /api/v1/{registry}/{namespace}/{repository}/{tag}
+	// Create endpoints for this resource directly using the pattern structure
 	endpoints := make(map[string]string)
+	cleanRequestPattern := cleanPatternString(req.Pattern)
 	for _, route := range m.Routes {
 		// Clean pattern by removing trailing {$} if present
 		cleanRoutePattern := cleanPatternString(route.Pattern)
@@ -594,16 +555,6 @@ func (m *ApiManager) HandleDownload(w http.ResponseWriter, req *http.Request) {
 	if err := layerInfo.Close(); err != nil {
 		log.Printf("Error closing content reader: %v", err)
 	}
-}
-
-// getRouteByDescription finds a route with the given description
-func (m *ApiManager) getRouteByDescription(description string) *RouteDefinition {
-	for _, route := range m.Routes {
-		if strings.Contains(route.Description, description) {
-			return &route
-		}
-	}
-	return nil
 }
 
 // cleanPatternString removes trailing {$} from a pattern string
