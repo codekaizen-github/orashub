@@ -6,8 +6,8 @@
 *.dll
 *.so
 *.dylib
-wordpress-plugin-registry-oras
-wordpress-plugin-registry-oras-*
+orashub
+orashub-*
 
 # Test binary, built with `go test -c`
 *.test

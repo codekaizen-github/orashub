@@ -1,11 +1,11 @@
 # Registry credentials configuration
 registries:
-  - name: "${WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY}"
-    username: "${WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_USERNAME}"
-    password: "${WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_PASSWORD}"
+  - name: "${ORASHUB_REGISTRY}"
+    username: "${ORASHUB_REGISTRY_USERNAME}"
+    password: "${ORASHUB_REGISTRY_PASSWORD}"
 
 # Repository access policy
 allowed_repositories:
-  - "${WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY}/codekaizen-github/*"
+  - "${ORASHUB_REGISTRY}/codekaizen-github/*"
 blocked_repositories: []
 

@@ -49,14 +49,14 @@ jobs:
           # Build with version info
           go build -v \
             -ldflags "-X main.version=${VERSION} -X main.commit=${GITHUB_SHA} -X main.date=${BUILD_DATE}" \
-            -o "wordpress-plugin-registry-oras-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}" \
+            -o "orashub-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}" \
             ./main.go
 
       - name: Upload binary
         uses: actions/upload-artifact@v3
         with:
-          name: wordpress-plugin-registry-oras-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: wordpress-plugin-registry-oras-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
+          name: orashub-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: orashub-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
 
   release:
     name: Create Release
@@ -70,7 +70,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            wordpress-plugin-registry-oras-*/wordpress-plugin-registry-oras-*
+            orashub-*/orashub-*
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

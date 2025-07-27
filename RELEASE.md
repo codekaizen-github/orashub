@@ -1,6 +1,6 @@
 # Release Process
 
-This document outlines the steps to create a new release of the WordPress Plugin Registry ORAS tool.
+This document outlines the steps to create a new release of the ORASHub tool.
 
 ## Release Checklist
 
@@ -17,7 +17,7 @@ This document outlines the steps to create a new release of the WordPress Plugin
    ```bash
    make build
    # Test the binary works as expected
-   ./wordpress-plugin-registry-oras --version
+   ./orashub --version
    ```
 
 4. **Create and Push a Git Tag**

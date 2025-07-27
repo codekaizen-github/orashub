@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/codekaizen-github/wordpress-plugin-registry-oras/server/policy"
-	"github.com/codekaizen-github/wordpress-plugin-registry-oras/server/router"
+	"github.com/codekaizen-github/orashub/server/policy"
+	"github.com/codekaizen-github/orashub/server/router"
 )
 
 // Version information - will be set during build via ldflags
@@ -26,7 +26,7 @@ func main() {
 
 	// If version flag is set, print version info and exit
 	if *versionFlag {
-		fmt.Printf("WordPress Plugin Registry ORAS v%s\n", Version)
+		fmt.Printf("ORASHub v%s\n", Version)
 		fmt.Printf("Commit: %s\n", Commit)
 		fmt.Printf("Built: %s\n", Date)
 		return
@@ -39,13 +39,13 @@ func main() {
 // Initialize creates a new client and server based on environment variables
 func Initialize() {
 	// Get port with default fallback
-	port := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_PORT")
+	port := os.Getenv("ORASHUB_PORT")
 	if port == "" {
 		port = "8080" // Default port if not set
 	}
 
 	// Get config file path with default fallback
-	configPath := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_CONFIG_PATH")
+	configPath := os.Getenv("ORASHUB_CONFIG_PATH")
 	if configPath == "" {
 		configPath = "../config/config.yaml"
 	}
@@ -60,7 +60,7 @@ func Initialize() {
 	imagePolicy := config.GetImagePolicy()
 
 	// Load templates
-	templatesPath := os.Getenv("WORDPRESS_PLUGIN_REGISTRY_ORAS_TEMPLATES_PATH")
+	templatesPath := os.Getenv("ORASHUB_TEMPLATES_PATH")
 	if templatesPath == "" {
 		templatesPath = "templates" // Default templates path
 	}

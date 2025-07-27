@@ -1,10 +1,10 @@
-# WordPress Plugin Registry ORAS
+# ORASHub
 
-A tool for storing and retrieving WordPress plugins using OCI Registry As Storage (ORAS).
+A tool for storing and retrieving files using OCI Registry As Storage (ORAS).
 
 ## Features
 
-- Store WordPress plugins in any OCI-compatible registry (GitHub Container Registry, Docker Hub, etc.)
+- Store files in any OCI-compatible registry (GitHub Container Registry, Docker Hub, etc.)
 - Download plugins directly from the registry
 - Stream content efficiently without needing temporary files
 - Support for proper content types and download headers
@@ -13,31 +13,31 @@ A tool for storing and retrieving WordPress plugins using OCI Registry As Storag
 
 ### Pre-built Binaries
 
-You can download pre-built binaries for your platform from the [Releases](https://github.com/codekaizen-github/wordpress-plugin-registry-oras/releases) page.
+You can download pre-built binaries for your platform from the [Releases](https://github.com/codekaizen-github/orashub/releases) page.
 
 #### Linux (amd64)
 ```bash
-curl -L https://github.com/codekaizen-github/wordpress-plugin-registry-oras/releases/latest/download/wordpress-plugin-registry-oras-linux-amd64 -o wordpress-plugin-registry-oras
-chmod +x wordpress-plugin-registry-oras
+curl -L https://github.com/codekaizen-github/orashub/releases/latest/download/orashub-linux-amd64 -o orashub
+chmod +x orashub
 ```
 
 #### macOS (amd64)
 ```bash
-curl -L https://github.com/codekaizen-github/wordpress-plugin-registry-oras/releases/latest/download/wordpress-plugin-registry-oras-darwin-amd64 -o wordpress-plugin-registry-oras
-chmod +x wordpress-plugin-registry-oras
+curl -L https://github.com/codekaizen-github/orashub/releases/latest/download/orashub-darwin-amd64 -o orashub
+chmod +x orashub
 ```
 
 #### Windows (amd64)
-Download the `wordpress-plugin-registry-oras-windows-amd64.exe` file from the releases page.
+Download the `orashub-windows-amd64.exe` file from the releases page.
 
 ### Building from Source
 
 If you have Go installed, you can build from source:
 
 ```bash
-git clone https://github.com/codekaizen-github/wordpress-plugin-registry-oras.git
-cd wordpress-plugin-registry-oras
-go build -o wordpress-plugin-registry-oras
+git clone https://github.com/codekaizen-github/orashub.git
+cd orashub
+go build -o orashub
 ```
 
 ## Usage
@@ -46,21 +46,21 @@ go build -o wordpress-plugin-registry-oras
 
 The application requires the following environment variables:
 
-- `WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY`: The registry URL (e.g., `ghcr.io`)
-- `WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_USERNAME`: Username for registry authentication
-- `WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_PASSWORD`: Password for registry authentication
-- `WORDPRESS_PLUGIN_REGISTRY_ORAS_PORT`: (Optional) Port to run the server on (default: 8080)
+- `ORASHUB_REGISTRY`: The registry URL (e.g., `ghcr.io`)
+- `ORASHUB_REGISTRY_USERNAME`: Username for registry authentication
+- `ORASHUB_REGISTRY_PASSWORD`: Password for registry authentication
+- `ORASHUB_PORT`: (Optional) Port to run the server on (default: 8080)
 
 ### Running the Server
 
 ```bash
-export WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY=ghcr.io
-export WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_USERNAME=your-username
-export WORDPRESS_PLUGIN_REGISTRY_ORAS_REGISTRY_PASSWORD=your-token
-./wordpress-plugin-registry-oras
+export ORASHUB_REGISTRY=ghcr.io
+export ORASHUB_REGISTRY_USERNAME=your-username
+export ORASHUB_REGISTRY_PASSWORD=your-token
+./orashub
 ```
 
-The server will start on port 8080 (or the port specified in the `WORDPRESS_PLUGIN_REGISTRY_ORAS_PORT` environment variable).
+The server will start on port 8080 (or the port specified in the `ORASHUB_PORT` environment variable).
 
 ### API Endpoints
 

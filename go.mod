@@ -1,4 +1,4 @@
-module github.com/codekaizen-github/wordpress-plugin-registry-oras
+module github.com/codekaizen-github/orashub
 
 go 1.24.5
 
