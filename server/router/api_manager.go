@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"path/filepath"
 	"strings"
 
 	"github.com/codekaizen-github/orashub/client"
@@ -108,16 +107,6 @@ func (m *ApiManager) defineRoutes() {
 		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}/{tag}/manifest/{$}", Description: "Manifest", Handler: m.HandleManifest},
 		{Method: "GET", Pattern: "/api/v1/{registry}/{namespace}/{repository}/{tag}/download/{$}", Description: "Download", Handler: m.HandleDownload},
 	}
-}
-
-// LoadTemplates loads all templates from the templates directory
-// This is a utility function to load templates before creating an ApiManager
-func LoadTemplates(templatesPath string) (*template.Template, error) {
-	templates, err := template.ParseGlob(filepath.Join(templatesPath, "*.html"))
-	if err != nil {
-		return nil, fmt.Errorf("error loading templates: %v", err)
-	}
-	return templates, nil
 }
 
 // SetupRoutes registers all HTTP routes for the server

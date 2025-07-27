@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/codekaizen-github/orashub/server/policy"
 	"github.com/codekaizen-github/orashub/server/router"
@@ -18,6 +19,15 @@ var (
 	Commit  = "none"
 	Date    = "unknown"
 )
+
+// LoadTemplates loads all templates from the templates directory
+func LoadTemplates(templatesPath string) (*template.Template, error) {
+	templates, err := template.ParseGlob(filepath.Join(templatesPath, "*.html"))
+	if err != nil {
+		return nil, fmt.Errorf("error loading templates: %v", err)
+	}
+	return templates, nil
+}
 
 // Start initializes and starts the server, handling version flags
 func main() {
@@ -65,7 +75,7 @@ func Initialize() {
 	var templates *template.Template
 	if templatesPath != "" {
 		var err error
-		templates, err = router.LoadTemplates(templatesPath)
+		templates, err = LoadTemplates(templatesPath)
 		if err != nil {
 			log.Printf("Warning: Error loading templates from %s: %v", templatesPath, err)
 			// Continue without templates - the server will use fallback template
