@@ -123,9 +123,6 @@ pipeline {
             }
         }
         stage('Create and Push Final Manifest') {
-            when {
-                branch 'main'
-            }
             agent { label 'docker' }
             environment {
                 ARCHS = 'amd64 arm64'
