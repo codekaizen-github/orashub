@@ -180,18 +180,26 @@ func (m *ApiManager) HandleApiRoot(w http.ResponseWriter, req *http.Request) {
 		endpointsPattern[key] = baseURL + cleanPattern
 	}
 
-	// Get the resource info pattern directly from the request pattern
+	// Use a known resource info pattern for the API examples
 	resourceInfoRoute := m.getRouteByDescription("Resource info")
-	
-	// Create example URL and resourcePath
-	exampleURL := baseURL + "/api/v1/ghcr.io/codekaizen-github/wp-github-gist-block/latest"
 	resourcePath := ""
-	
+	var exampleURL string
+
 	if resourceInfoRoute != nil {
 		resourcePath = baseURL + cleanPatternString(resourceInfoRoute.Pattern)
+
+		// Create example URL using interpolation
+		exampleValues := map[string]string{
+			"registry":   "ghcr.io",
+			"namespace":  "codekaizen-github",
+			"repository": "wp-github-gist-block",
+			"tag":        "latest",
+		}
+		exampleURL = baseURL + interpolatePattern(cleanPatternString(resourceInfoRoute.Pattern), exampleValues)
 	} else {
 		// Fallback in case pattern isn't found
 		resourcePath = baseURL + "/api/v1/{registry}/{namespace}/{repository}/{tag}"
+		exampleURL = baseURL + "/api/v1/ghcr.io/codekaizen-github/wp-github-gist-block/latest"
 	}
 
 	// Create API root response
@@ -269,20 +277,13 @@ func (m *ApiManager) checkImagePolicy(w http.ResponseWriter, req *http.Request, 
 
 // HandleListTags handles the list tags endpoint for both default and registry-specific routes
 func (m *ApiManager) HandleListTags(w http.ResponseWriter, req *http.Request) {
-	// Get all path values using our helper function
-	listTagsRoute := m.getRouteByDescription("List tags")
-	var routePattern string
-	if listTagsRoute != nil {
-		routePattern = listTagsRoute.Pattern
-	} else {
-		// Fallback to the current pattern if route not found
-		routePattern = req.Pattern
-	}
-	
-	pathValues := getPathValues(req, routePattern)
+	// Get all path values using the request pattern directly
+	pathValues := getPathValues(req, req.Pattern)
 	registry := pathValues["registry"]
 	namespace := pathValues["namespace"]
-	repository := pathValues["repository"]	// Debug logging
+	repository := pathValues["repository"]
+
+	// Debug logging
 	log.Printf("HandleListTags called with registry=%s, namespace=%s, repository=%s", registry, namespace, repository)
 
 	// Get client
@@ -359,21 +360,14 @@ func (m *ApiManager) HandleListTags(w http.ResponseWriter, req *http.Request) {
 
 // HandleResourceInfo handles the resource info endpoint for both default and registry-specific routes
 func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request) {
-	// Get all path values using our helper function
-	resourceInfoRoute := m.getRouteByDescription("Resource info")
-	var routePattern string
-	if resourceInfoRoute != nil {
-		routePattern = resourceInfoRoute.Pattern
-	} else {
-		// Fallback to the current pattern if route not found
-		routePattern = req.Pattern
-	}
-	
-	pathValues := getPathValues(req, routePattern)
+	// Get all path values using the request pattern directly
+	pathValues := getPathValues(req, req.Pattern)
 	registry := pathValues["registry"]
 	namespace := pathValues["namespace"]
 	repository := pathValues["repository"]
-	tag := pathValues["tag"]	// Get client
+	tag := pathValues["tag"]
+
+	// Get client
 	client, err := m.getClient(registry)
 	if err != nil {
 		// Handle specific error types
@@ -437,21 +431,18 @@ func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request
 
 // HandleDescriptor handles the descriptor endpoint for both default and registry-specific routes
 func (m *ApiManager) HandleDescriptor(w http.ResponseWriter, req *http.Request) {
-	// Get all path values using our helper function
-	descriptorRoute := m.getRouteByDescription("Descriptor")
-	var routePattern string
-	if descriptorRoute != nil {
-		routePattern = descriptorRoute.Pattern
-	} else {
-		// Fallback to the current pattern if route not found
-		routePattern = req.Pattern
-	}
-	
-	pathValues := getPathValues(req, routePattern)
+	// Get all path values using the request pattern directly
+	pathValues := getPathValues(req, req.Pattern)
 	registry := pathValues["registry"]
 	namespace := pathValues["namespace"]
 	repository := pathValues["repository"]
-	tag := pathValues["tag"]	// Get client
+	tag := pathValues["tag"]
+
+	// Debug logging
+	log.Printf("HandleDescriptor called with registry=%s, namespace=%s, repository=%s, tag=%s",
+		registry, namespace, repository, tag)
+
+	// Get client
 	client, err := m.getClient(registry)
 	if err != nil {
 		// Handle specific error types
@@ -495,21 +486,14 @@ func (m *ApiManager) HandleDescriptor(w http.ResponseWriter, req *http.Request) 
 
 // HandleManifest handles the manifest endpoint for both default and registry-specific routes
 func (m *ApiManager) HandleManifest(w http.ResponseWriter, req *http.Request) {
-	// Get all path values using our helper function
-	manifestRoute := m.getRouteByDescription("Manifest")
-	var routePattern string
-	if manifestRoute != nil {
-		routePattern = manifestRoute.Pattern
-	} else {
-		// Fallback to the current pattern if route not found
-		routePattern = req.Pattern
-	}
-	
-	pathValues := getPathValues(req, routePattern)
+	// Get all path values using the request pattern directly
+	pathValues := getPathValues(req, req.Pattern)
 	registry := pathValues["registry"]
 	namespace := pathValues["namespace"]
 	repository := pathValues["repository"]
-	tag := pathValues["tag"]	// Get client
+	tag := pathValues["tag"]
+
+	// Get client
 	client, err := m.getClient(registry)
 	if err != nil {
 		// Handle specific error types
@@ -550,21 +534,14 @@ func (m *ApiManager) HandleManifest(w http.ResponseWriter, req *http.Request) {
 
 // HandleDownload handles the download endpoint for both default and registry-specific routes
 func (m *ApiManager) HandleDownload(w http.ResponseWriter, req *http.Request) {
-	// Get all path values using our helper function
-	downloadRoute := m.getRouteByDescription("Download")
-	var routePattern string
-	if downloadRoute != nil {
-		routePattern = downloadRoute.Pattern
-	} else {
-		// Fallback to the current pattern if route not found
-		routePattern = req.Pattern
-	}
-	
-	pathValues := getPathValues(req, routePattern)
+	// Get all path values using the request pattern directly
+	pathValues := getPathValues(req, req.Pattern)
 	registry := pathValues["registry"]
 	namespace := pathValues["namespace"]
 	repository := pathValues["repository"]
-	tag := pathValues["tag"]	// Get client
+	tag := pathValues["tag"]
+
+	// Get client
 	client, err := m.getClient(registry)
 	if err != nil {
 		// Handle specific error types
