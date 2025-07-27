@@ -557,8 +557,15 @@ func (m *ApiManager) HandleDownload(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// cleanPatternString removes trailing {$} from a pattern string
+// cleanPatternString removes methods and trailing {$} from a pattern string
 func cleanPatternString(pattern string) string {
+	// Split on whitespace to remove any method
+	// Use Fields for whitespace on split
+	parts := strings.Fields(pattern)
+	if len(parts) > 1 {
+		// If there's a method, we only care about the path part
+		pattern = parts[1]
+	}
 	// Remove trailing /{$}
 	clean := strings.TrimSuffix(pattern, "/{$}")
 	// Remove trailing {$} without slash
