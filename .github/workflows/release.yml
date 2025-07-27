@@ -70,6 +70,8 @@ jobs:
     name: Create Release
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for creating releases
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -79,7 +81,6 @@ jobs:
         with:
           files: |
             orashub-*/*
-            orashubctl-*/*
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
