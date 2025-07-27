@@ -30,6 +30,16 @@ chmod +x orashub
 #### Windows (amd64)
 Download the `orashub-windows-amd64.exe` file from the releases page.
 
+### Docker Image
+
+A ready-to-use Docker image is available on GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/codekaizen-github/orashub:latest
+```
+
+The image supports both amd64 and arm64 architectures. See the [Running with Docker](#2-using-docker) section for usage instructions.
+
 ### Building from Source
 
 If you have Go installed, you can build from source:
@@ -126,7 +136,7 @@ export ORASHUB_PORT=8080
 
 #### 2. Using Docker
 
-ORASHub is available as a Docker image on GitHub Container Registry:
+ORASHub is available as a Docker image on GitHub Container Registry. The image is multi-architecture and supports both amd64 and arm64 platforms.
 
 ```bash
 # Create a configuration file on your host machine
@@ -161,6 +171,8 @@ docker run -d \
   -v $(pwd)/config:/app/config \
   ghcr.io/codekaizen-github/orashub:latest
 ```
+
+You can also use a specific version by replacing `latest` with a version tag like `v1.0.0`.
 
 #### 3. Building from Source
 
