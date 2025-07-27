@@ -11,22 +11,28 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        include:
-          - goos: linux
-            goarch: amd64
-            suffix: ""
-          - goos: linux
-            goarch: arm64
-            suffix: ""
-          - goos: darwin
-            goarch: amd64
-            suffix: ""
-          - goos: darwin
-            goarch: arm64
-            suffix: ""
+        component:
+          - server
+          # - client # Uncomment if you want to build the client as well
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+        exclude:
           - goos: windows
-            goarch: amd64
+            goarch: arm64
+        include:
+          # Add binary names based on component
+          - component: server
+            binary_name: orashub
+          # - component: client
+          #   binary_name: orashubctl
+          # Add suffixes for Windows
+          - goos: windows
             suffix: ".exe"
+          # Add empty suffix for non-Windows platforms
+          - goos: linux
+            suffix: ""
+          - goos: darwin
+            suffix: ""
 
     steps:
       - name: Checkout code
@@ -46,17 +52,19 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           # Get current date
           BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          # Get suffix (default to empty string if not defined)
+          SUFFIX="${{ matrix.suffix || '' }}"
           # Build with version info
           go build -v \
             -ldflags "-X main.version=${VERSION} -X main.commit=${GITHUB_SHA} -X main.date=${BUILD_DATE}" \
-            -o "orashub-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}" \
-            ./main.go
+            -o "${{ matrix.binary_name || 'orashub' }}-${{ matrix.goos }}-${{ matrix.goarch }}${SUFFIX}" \
+            ./${{ matrix.component }}
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: orashub-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: orashub-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
+          name: ${{ matrix.binary_name || 'orashub' }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ matrix.binary_name || 'orashub' }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix || '' }}
 
   release:
     name: Create Release
@@ -70,7 +78,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            orashub-*/orashub-*
+            orashub-*/*
+            orashubctl-*/*
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
