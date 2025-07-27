@@ -8,6 +8,8 @@ A tool for storing and retrieving files using OCI Registry As Storage (ORAS).
 - Download files directly from the registry
 - Stream content efficiently without needing temporary files
 - Support for proper content types and download headers
+- Uses relative URLs for all API endpoints, making it compatible with any reverse proxy setup
+- Simple configuration with minimal environment variables
 
 ## Installation
 
@@ -203,15 +205,18 @@ export ORASHUB_PORT=8080
 
 ### API Endpoints
 
+The API uses relative URLs for all endpoints, which makes it compatible with any reverse proxy setup without additional configuration.
+
 #### Discovery Endpoints
 - `GET /` - HTML welcome page with basic information
 - `GET /api/v1` - API root showing available endpoint patterns
-- `GET /api/v1/{namespace}/{repository}/{tag}` - Shows all endpoints for a specific plugin
+- `GET /api/v1/{registry}/{namespace}/{repository}` - List tags for a repository
+- `GET /api/v1/{registry}/{namespace}/{repository}/{tag}` - Shows all endpoints for a specific resource
 
 #### Resource Endpoints
-- `GET /api/v1/{namespace}/{repository}/{tag}/download` - Download the plugin
-- `GET /api/v1/{namespace}/{repository}/{tag}/descriptor` - Get descriptor metadata
-- `GET /api/v1/{namespace}/{repository}/{tag}/manifest` - Get manifest
+- `GET /api/v1/{registry}/{namespace}/{repository}/{tag}/download` - Download the content
+- `GET /api/v1/{registry}/{namespace}/{repository}/{tag}/descriptor` - Get descriptor metadata
+- `GET /api/v1/{registry}/{namespace}/{repository}/{tag}/manifest` - Get manifest
 
 ## License
 
