@@ -46,18 +46,48 @@ go build -o orashub
 
 The application requires the following environment variables:
 
-- `ORASHUB_REGISTRY`: The registry URL (e.g., `ghcr.io`)
-- `ORASHUB_REGISTRY_USERNAME`: Username for registry authentication
-- `ORASHUB_REGISTRY_PASSWORD`: Password for registry authentication
+- `ORASHUB_CONFIG_PATH`: Path to the configuration file (required)
 - `ORASHUB_PORT`: (Optional) Port to run the server on (default: 8080)
+
+### Configuration File
+
+The application uses a configuration file (`config.yaml`) to define registry connections and access policies. You must specify the path to this file using the `ORASHUB_CONFIG_PATH` environment variable.
+
+#### Example Configuration
+
+```yaml
+# Registry credentials configuration
+registries:
+  - name: "${ORASHUB_REGISTRY}"  # Uses the value from ORASHUB_REGISTRY environment variable
+    username: "${ORASHUB_REGISTRY_USERNAME}"
+    password: "${ORASHUB_REGISTRY_PASSWORD}"
+
+# Repository access policy
+allowed_repositories:
+  - "${ORASHUB_REGISTRY}/codekaizen-github/*"  # Wildcard pattern for repositories
+blocked_repositories: []  # Empty list means no repositories are explicitly blocked
+```
+
+#### Configuration Sections
+
+- **registries**: List of container registries and their credentials
+  - **name**: Registry URL (e.g., `ghcr.io`)
+  - **username**: Username for authentication (supports environment variable substitution)
+  - **password**: Password for authentication (supports environment variable substitution)
+
+- **allowed_repositories**: List of repository patterns that are allowed to be accessed
+  - Supports wildcard patterns like `ghcr.io/username/*`
+  - If empty, all repositories are allowed
+
+- **blocked_repositories**: List of repository patterns that should be blocked
+  - Takes precedence over allowed_repositories
+  - If empty, no repositories are explicitly blocked
 
 ### Running the Server
 
 ```bash
-export ORASHUB_REGISTRY=ghcr.io
-export ORASHUB_REGISTRY_USERNAME=your-username
-export ORASHUB_REGISTRY_PASSWORD=your-token
-./orashub
+export ORASHUB_CONFIG_PATH=/path/to/your/config.yaml
+orashub
 ```
 
 The server will start on port 8080 (or the port specified in the `ORASHUB_PORT` environment variable).
@@ -73,7 +103,6 @@ The server will start on port 8080 (or the port specified in the `ORASHUB_PORT` 
 - `GET /api/v1/{namespace}/{repository}/{tag}/download` - Download the plugin
 - `GET /api/v1/{namespace}/{repository}/{tag}/descriptor` - Get descriptor metadata
 - `GET /api/v1/{namespace}/{repository}/{tag}/manifest` - Get manifest
-- `GET /api/v1/{namespace}/{repository}/{tag}/annotations` - Get annotations
 
 ## License
 
