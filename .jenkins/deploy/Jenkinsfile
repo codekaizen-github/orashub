@@ -79,7 +79,7 @@ pipeline {
                 }
             }
         }
-        stage('Create and Push Manifest') {
+        stage('Create and Push Build Stage Manifests') {
             matrix {
                 axes {
                     axis {
@@ -88,6 +88,9 @@ pipeline {
                     }
                 }
                 agent { label 'docker' }
+                environment {
+                    ARCHS = 'amd64 arm64'
+                }
                 stages {
                     stage('Push Manifest') {
                         steps {
@@ -95,7 +98,6 @@ pipeline {
                                 withCredentials([string(credentialsId: GHCR_CREDENTIALS_ID, variable: 'GHCR_PAT')]) {
                                     sh '''
                                     echo "${GHCR_PAT}" | docker login ${GHCR_REGISTRY} -u "${GHCR_USER}" --password-stdin
-                                    ARCHS="amd64 arm64"
                                     manifest_tag="${GHCR_REGISTRY}/${GHCR_REPOSITORY}:${DYNAMIC_TAG_NAME}-${DOCKER_STAGE}"
                                     # Remove manifest if exists
                                     docker manifest rm $manifest_tag || true
@@ -116,6 +118,41 @@ pipeline {
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+        stage('Create and Push Latest Manifest') {
+            when {
+                branch 'main'
+            }
+            agent { label 'docker' }
+            environment {
+                ARCHS = 'amd64 arm64'
+                DOCKER_STAGE = 'final' // Ensure this matches the stage used in the build step
+            }
+            steps {
+                script {
+                    withCredentials([string(credentialsId: GHCR_CREDENTIALS_ID, variable: 'GHCR_PAT')]) {
+                        sh '''
+                        echo "${GHCR_PAT}" | docker login ${GHCR_REGISTRY} -u "${GHCR_USER}" --password-stdin
+                        manifest_tag="${GHCR_REGISTRY}/${GHCR_REPOSITORY}:latest"
+                        # Remove manifest if exists
+                        docker manifest rm $manifest_tag || true
+                        # Build manifest create command
+                        manifest_create_cmd="docker manifest create $manifest_tag"
+                        for arch in $ARCHS; do
+                          manifest_create_cmd="$manifest_create_cmd ${GHCR_REGISTRY}/${GHCR_REPOSITORY}:latest-${DOCKER_STAGE}-$arch"
+                        done
+                        manifest_create_cmd="$manifest_create_cmd --amend"
+                        eval $manifest_create_cmd
+                        # Annotate for each arch
+                        for arch in $ARCHS; do
+                          docker manifest annotate $manifest_tag ${GHCR_REGISTRY}/${GHCR_REPOSITORY}:latest-${DOCKER_STAGE}-$arch --os linux --arch $arch
+                        done
+                        docker manifest inspect $manifest_tag
+                        docker manifest push $manifest_tag --purge
+                        '''
                     }
                 }
             }
