@@ -53,7 +53,7 @@ jobs:
             ./main.go
 
       - name: Upload binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: orashub-${{ matrix.goos }}-${{ matrix.goarch }}
           path: orashub-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
@@ -64,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
 
       - name: Create release
         uses: softprops/action-gh-release@v1
