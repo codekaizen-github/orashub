@@ -29,6 +29,44 @@ func LoadTemplates(templatesPath string) (*template.Template, error) {
 	return templates, nil
 }
 
+// CreateFallbackTemplate creates an in-memory template with the default HTML content
+func CreateFallbackTemplate() *template.Template {
+	tmpl := `<!DOCTYPE html>
+<html>
+<head>
+    <title>ORASHub</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #2c3e50; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .api-link { display: inline-block; margin-top: 20px; background: #3498db; color: white; padding: 10px 15px; border-radius: 4px; }
+        .api-link:hover { background: #2980b9; text-decoration: none; }
+        code { background: #f8f8f8; padding: 2px 5px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>ORASHub</h1>
+    <p>A service for storing and retrieving files using OCI Registry As Storage (ORAS).</p>
+
+    <h2>API Access</h2>
+    <p>The API is available at: <code>{{.ApiURL}}</code></p>
+    <a href="{{.ApiURL}}" class="api-link">Explore the API</a>
+
+    <h2>Documentation</h2>
+    <p>For more information, please refer to the <a href="https://github.com/codekaizen-github/orashub">GitHub repository</a>.</p>
+</body>
+</html>`
+
+	// Parse the template
+	t, err := template.New("index.html").Parse(tmpl)
+	if err != nil {
+		log.Printf("Error parsing fallback template: %v", err)
+		return nil
+	}
+	return t
+}
+
 // Start initializes and starts the server, handling version flags
 func main() {
 	// Define command line flags
@@ -73,17 +111,20 @@ func Initialize() {
 	// Load templates if path is provided
 	templatesPath := os.Getenv("ORASHUB_TEMPLATES_PATH")
 	var templates *template.Template
+	
 	if templatesPath != "" {
 		var err error
 		templates, err = LoadTemplates(templatesPath)
 		if err != nil {
 			log.Printf("Warning: Error loading templates from %s: %v", templatesPath, err)
-			// Continue without templates - the server will use fallback template
+			log.Printf("Using fallback template instead")
+			templates = CreateFallbackTemplate()
 		} else {
 			log.Printf("Loaded templates from: %s", templatesPath)
 		}
 	} else {
 		log.Printf("ORASHUB_TEMPLATES_PATH not set, using fallback template")
+		templates = CreateFallbackTemplate()
 	}
 
 	// Create API manager

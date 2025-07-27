@@ -30,11 +30,10 @@ type RouteDefinition struct {
 
 // ApiManager manages the API routing and client interactions
 type ApiManager struct {
-	Clients          map[string]client.ClientInterface
-	Templates        *template.Template
-	ImagePolicy      *policy.ImagePolicy
-	Routes           []RouteDefinition
-	FallbackTemplate string // Fallback HTML template when no template files are available
+	Clients     map[string]client.ClientInterface
+	Templates   *template.Template
+	ImagePolicy *policy.ImagePolicy
+	Routes      []RouteDefinition
 }
 
 // NewApiManager creates a new API manager with the given configuration
@@ -48,32 +47,6 @@ func NewApiManager(config *policy.ConfigFile, imagePolicy *policy.ImagePolicy, t
 		Clients:     make(map[string]client.ClientInterface),
 		ImagePolicy: imagePolicy,
 		Templates:   templates,
-		FallbackTemplate: `<!DOCTYPE html>
-<html>
-<head>
-    <title>ORASHub</title>
-    <style>
-        body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
-        h1 { color: #2c3e50; }
-        a { color: #3498db; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        .api-link { display: inline-block; margin-top: 20px; background: #3498db; color: white; padding: 10px 15px; border-radius: 4px; }
-        .api-link:hover { background: #2980b9; text-decoration: none; }
-        code { background: #f8f8f8; padding: 2px 5px; border-radius: 3px; }
-    </style>
-</head>
-<body>
-    <h1>ORASHub</h1>
-    <p>A service for storing and retrieving files using OCI Registry As Storage (ORAS).</p>
-
-    <h2>API Access</h2>
-    <p>The API is available at: <code>{{.ApiURL}}</code></p>
-    <a href="{{.ApiURL}}" class="api-link">Explore the API</a>
-
-    <h2>Documentation</h2>
-    <p>For more information, please refer to the <a href="https://github.com/codekaizen-github/orashub">GitHub repository</a>.</p>
-</body>
-</html>`,
 	}
 
 	// Create clients for each registry in the config
@@ -163,26 +136,12 @@ func (m *ApiManager) HandleRoot(w http.ResponseWriter, req *http.Request) {
 	if m.Templates != nil {
 		if err := m.Templates.ExecuteTemplate(w, "index.html", data); err != nil {
 			log.Printf("Error executing template: %v", err)
-			// Fall back to the hardcoded template
-			fallbackTemplate, err := template.New("fallback").Parse(m.FallbackTemplate)
-			if err != nil {
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-				return
-			}
-			if err := fallbackTemplate.Execute(w, data); err != nil {
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-			}
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
 	} else {
-		// No templates were loaded, use fallback
-		fallbackTemplate, err := template.New("fallback").Parse(m.FallbackTemplate)
-		if err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-		if err := fallbackTemplate.Execute(w, data); err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-		}
+		// This should never happen as we always set up a template in main.go
+		log.Printf("Warning: No templates available")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
 
