@@ -48,6 +48,7 @@ The application requires the following environment variables:
 
 - `ORASHUB_CONFIG_PATH`: Path to the configuration file (required)
 - `ORASHUB_PORT`: (Optional) Port to run the server on (default: 8080)
+- `ORASHUB_TEMPLATES_PATH`: (Optional) Path to HTML templates directory. If not set, a built-in fallback template will be used.
 
 ### Configuration File
 
@@ -114,6 +115,8 @@ EOL
 # Point to the config file and run
 export ORASHUB_CONFIG_PATH=$(pwd)/config.yaml
 export ORASHUB_PORT=8080
+# Optional: specify custom templates path
+# export ORASHUB_TEMPLATES_PATH=$(pwd)/templates
 ./orashub
 ```
 
@@ -144,6 +147,9 @@ docker run -d \
   -e ORASHUB_REGISTRY_USERNAME=your-username \
   -e ORASHUB_REGISTRY_PASSWORD=your-token \
   -e ORASHUB_CONFIG_PATH=/app/config/config.yaml \
+  # Optional: mount and specify custom templates
+  # -e ORASHUB_TEMPLATES_PATH=/app/templates \
+  # -v $(pwd)/templates:/app/templates \
   -v $(pwd)/config:/app/config \
   ghcr.io/codekaizen-github/orashub:latest
 ```
@@ -168,6 +174,8 @@ go build -o orashub
 # Use the development config or create your own
 export ORASHUB_CONFIG_PATH=$(pwd)/dev/config.yaml
 export ORASHUB_PORT=8080
+# Optional: specify custom templates path
+# export ORASHUB_TEMPLATES_PATH=$(pwd)/server/templates
 
 # Run the application
 ./orashub

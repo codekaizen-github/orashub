@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -59,15 +60,20 @@ func Initialize() {
 	// Get image policy from the configuration
 	imagePolicy := config.GetImagePolicy()
 
-	// Load templates
+	// Load templates if path is provided
 	templatesPath := os.Getenv("ORASHUB_TEMPLATES_PATH")
-	if templatesPath == "" {
-		templatesPath = "templates" // Default templates path
-	}
-	templates, err := router.LoadTemplates(templatesPath)
-	if err != nil {
-		log.Printf("Warning: Error loading templates: %v", err)
-		// Continue without templates - the server can still function for API calls
+	var templates *template.Template
+	if templatesPath != "" {
+		var err error
+		templates, err = router.LoadTemplates(templatesPath)
+		if err != nil {
+			log.Printf("Warning: Error loading templates from %s: %v", templatesPath, err)
+			// Continue without templates - the server will use fallback template
+		} else {
+			log.Printf("Loaded templates from: %s", templatesPath)
+		}
+	} else {
+		log.Printf("ORASHUB_TEMPLATES_PATH not set, using fallback template")
 	}
 
 	// Create API manager
