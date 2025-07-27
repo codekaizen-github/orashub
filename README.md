@@ -5,7 +5,7 @@ A tool for storing and retrieving files using OCI Registry As Storage (ORAS).
 ## Features
 
 - Store files in any OCI-compatible registry (GitHub Container Registry, Docker Hub, etc.)
-- Download plugins directly from the registry
+- Download files directly from the registry
 - Stream content efficiently without needing temporary files
 - Support for proper content types and download headers
 

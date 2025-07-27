@@ -1,6 +1,6 @@
 .env
 
-# Binaries for programs and plugins
+# Binaries for programs and files
 *.exe
 *.exe~
 *.dll
