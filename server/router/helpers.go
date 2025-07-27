@@ -3,40 +3,8 @@ package router
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 )
-
-// It checks environment variables first, then falls back to request values
-func getServerInfo(r *http.Request) (scheme, host string) {
-	// Check for scheme override from environment variable
-	scheme = os.Getenv("ORASHUB_SCHEME")
-	if scheme == "" {
-		// Fall back to request scheme
-		if r.TLS != nil {
-			scheme = "https"
-		} else {
-			scheme = "http"
-		}
-	}
-
-	// Check for host override from environment variable
-	envHost := os.Getenv("ORASHUB_HOST")
-	envPort := os.Getenv("ORASHUB_PORT")
-
-	if envHost != "" {
-		host = envHost
-		// If port is also specified, append it to the host
-		if envPort != "" && envPort != "80" && envPort != "443" {
-			host = fmt.Sprintf("%s:%s", host, envPort)
-		}
-	} else {
-		// Use the host from the request
-		host = r.Host
-	}
-
-	return scheme, host
-}
 
 // getPathValues extracts all path variables from a request based on a route pattern
 func getPathValues(req *http.Request, pattern string) map[string]string {

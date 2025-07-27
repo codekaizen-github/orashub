@@ -118,15 +118,11 @@ func (m *ApiManager) HandleRoot(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Get server information for API URL
-	scheme, host := getServerInfo(req)
-	apiURL := fmt.Sprintf("%s://%s/api/v1", scheme, host)
-
-	// Define template data
+	// Define template data with relative URL
 	data := struct {
 		ApiURL string
 	}{
-		ApiURL: apiURL,
+		ApiURL: "/api/v1",
 	}
 
 	// Execute template
@@ -153,9 +149,6 @@ func (m *ApiManager) HandleApiRoot(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	scheme, host := getServerInfo(req)
-	baseURL := fmt.Sprintf("%s://%s", scheme, host)
-
 	// Create the endpoints_pattern map dynamically from our routes
 	endpointsPattern := make(map[string]string)
 	for _, route := range m.Routes {
@@ -164,10 +157,10 @@ func (m *ApiManager) HandleApiRoot(w http.ResponseWriter, req *http.Request) {
 			continue
 		}
 
-		// Create a key based on the description and store the full URL with placeholders intact
+		// Create a key based on the description and store the path with placeholders intact
 		key := strings.ToLower(strings.ReplaceAll(route.Description, " ", "_"))
 		cleanPattern := cleanPatternString(route.Pattern)
-		endpointsPattern[key] = baseURL + cleanPattern
+		endpointsPattern[key] = cleanPattern
 	}
 
 	// Create API root response
@@ -280,12 +273,8 @@ func (m *ApiManager) HandleListTags(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Build base URL for tag resources
-	scheme, host := getServerInfo(req)
-	baseURL := fmt.Sprintf("%s://%s", scheme, host)
-
-	// Create a template URL for tags with placeholders
-	tagUrlTemplate := baseURL + req.URL.Path + "{tag}"
+	// Create a template URL for tags with placeholders - using relative URL
+	tagUrlTemplate := req.URL.Path + "{tag}"
 
 	// Create endpoints map with links to each tag's resource info
 	tagEndpoints := make(map[string]string)
@@ -341,11 +330,6 @@ func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	// Build base URL for this resource
-	scheme, host := getServerInfo(req)
-	// scheme and host
-	baseURL := fmt.Sprintf("%s://%s", scheme, host)
-
 	// Create endpoints for this resource directly using the pattern structure
 	endpoints := make(map[string]string)
 	cleanRequestPattern := cleanPatternString(req.Pattern)
@@ -357,10 +341,10 @@ func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request
 		log.Printf("Checking route: %s against request pattern: %s", cleanRoutePattern, cleanRequestPattern)
 
 		if strings.HasPrefix(cleanRoutePattern, cleanRequestPattern) {
-			// Create a key based on the description and store the full URL
+			// Create a key based on the description and store the relative URL
 			key := strings.ToLower(strings.ReplaceAll(route.Description, " ", "_"))
-			// interpolate /api/v1/{registry}/{namespace}/{repository}/{tag}
-			endpoints[key] = baseURL + interpolatePattern(cleanRoutePattern, pathValues)
+			// interpolate /api/v1/{registry}/{namespace}/{repository}/{tag} without baseURL
+			endpoints[key] = interpolatePattern(cleanRoutePattern, pathValues)
 		}
 	}
 
