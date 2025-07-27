@@ -112,6 +112,10 @@ allowed_repositories:
 blocked_repositories: []
 EOL
 
+# Optional: Create custom templates
+# mkdir -p ./templates
+# cp path/to/your/templates/*.html ./templates/
+
 # Point to the config file and run
 export ORASHUB_CONFIG_PATH=$(pwd)/config.yaml
 export ORASHUB_PORT=8080
@@ -139,6 +143,10 @@ allowed_repositories:
   - "\${ORASHUB_REGISTRY}/codekaizen-github/*"
 blocked_repositories: []
 EOL
+
+# Optional: Create custom templates
+# mkdir -p ./templates
+# cp path/to/your/templates/*.html ./templates/
 
 # Run the Docker container with environment variables and volume mount
 docker run -d \
@@ -175,7 +183,7 @@ go build -o orashub
 export ORASHUB_CONFIG_PATH=$(pwd)/dev/config.yaml
 export ORASHUB_PORT=8080
 # Optional: specify custom templates path
-# export ORASHUB_TEMPLATES_PATH=$(pwd)/server/templates
+# export ORASHUB_TEMPLATES_PATH=$(pwd)/dev/templates
 
 # Run the application
 ./orashub
