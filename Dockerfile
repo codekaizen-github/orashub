@@ -20,7 +20,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -v -o /usr/local/bin/${BINARY_NAME} ./${BUILD_COMPONENT}
 
 # Create a final stage for running the application
-FROM alpine:3.19
+FROM alpine:3.19 AS final
 
 # Need to redeclare the ARG in this stage to use it
 ARG BINARY_NAME=app
