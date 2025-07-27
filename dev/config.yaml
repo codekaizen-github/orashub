@@ -8,4 +8,3 @@ registries:
 allowed_repositories:
   - "${ORASHUB_REGISTRY}/codekaizen-github/*"
 blocked_repositories: []
-

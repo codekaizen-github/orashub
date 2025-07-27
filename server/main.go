@@ -47,7 +47,7 @@ func Initialize() {
 	// Get config file path with default fallback
 	configPath := os.Getenv("ORASHUB_CONFIG_PATH")
 	if configPath == "" {
-		configPath = "../config/config.yaml"
+		log.Fatalf("ORASHUB_CONFIG_PATH environment variable is not set")
 	}
 
 	// Load configuration file
