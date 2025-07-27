@@ -266,10 +266,19 @@ func (m *ApiManager) checkImagePolicy(w http.ResponseWriter, req *http.Request, 
 
 // HandleListTags handles the list tags endpoint for both default and registry-specific routes
 func (m *ApiManager) HandleListTags(w http.ResponseWriter, req *http.Request) {
-	// Extract parameters
-	registry := req.PathValue("registry")
-	namespace := req.PathValue("namespace")
-	repository := req.PathValue("repository")
+	// Get all path values using our helper function
+	routePattern := ""
+	for _, route := range m.Routes {
+		if strings.Contains(route.Description, "List tags") {
+			routePattern = route.Pattern
+			break
+		}
+	}
+
+	pathValues := getPathValues(req, routePattern)
+	registry := pathValues["registry"]
+	namespace := pathValues["namespace"]
+	repository := pathValues["repository"]
 
 	// Debug logging
 	log.Printf("HandleListTags called with registry=%s, namespace=%s, repository=%s", registry, namespace, repository)
@@ -323,12 +332,9 @@ func (m *ApiManager) HandleListTags(w http.ResponseWriter, req *http.Request) {
 	for _, tag := range tags {
 		if resourceInfoPattern != "" {
 			// Create URL for this tag by interpolating the resource info pattern
-			tagURL := baseURL + interpolatePattern(resourceInfoPattern, map[string]string{
-				"registry":   registry,
-				"namespace":  namespace,
-				"repository": repository,
-				"tag":        tag,
-			})
+			tagURL := baseURL + interpolatePattern(resourceInfoPattern, pathValues)
+			// Override the tag value with the current tag
+			tagURL = strings.ReplaceAll(tagURL, "{tag}", tag)
 			tagEndpoints[tag] = tagURL
 			log.Printf("Created endpoint for tag %s: %s", tag, tagURL)
 		}
@@ -353,11 +359,21 @@ func (m *ApiManager) HandleListTags(w http.ResponseWriter, req *http.Request) {
 
 // HandleResourceInfo handles the resource info endpoint for both default and registry-specific routes
 func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request) {
-	// Extract parameters
-	registry := req.PathValue("registry")
-	namespace := req.PathValue("namespace")
-	repository := req.PathValue("repository")
-	tag := req.PathValue("tag")
+	// Get all path values using our helper function
+	routePattern := ""
+	for _, route := range m.Routes {
+		if strings.Contains(route.Description, "Resource info") {
+			routePattern = route.Pattern
+			break
+		}
+	}
+
+	pathValues := getPathValues(req, routePattern)
+	registry := pathValues["registry"]
+	namespace := pathValues["namespace"]
+	repository := pathValues["repository"]
+	tag := pathValues["tag"]
+
 	// Get client
 	client, err := m.getClient(registry)
 	if err != nil {
@@ -400,12 +416,7 @@ func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request
 			// Create a key based on the description and store the full URL
 			key := strings.ToLower(strings.ReplaceAll(route.Description, " ", "_"))
 			// interpolate /api/v1/{registry}/{namespace}/{repository}/{tag}
-			endpoints[key] = baseURL + interpolatePattern(cleanRoutePattern, map[string]string{
-				"registry":   registry,
-				"namespace":  namespace,
-				"repository": repository,
-				"tag":        tag,
-			})
+			endpoints[key] = baseURL + interpolatePattern(cleanRoutePattern, pathValues)
 		}
 	}
 
@@ -427,11 +438,20 @@ func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request
 
 // HandleDescriptor handles the descriptor endpoint for both default and registry-specific routes
 func (m *ApiManager) HandleDescriptor(w http.ResponseWriter, req *http.Request) {
-	// Extract parameters
-	registry := req.PathValue("registry")
-	namespace := req.PathValue("namespace")
-	repository := req.PathValue("repository")
-	tag := req.PathValue("tag")
+	// Get all path values using our helper function
+	routePattern := ""
+	for _, route := range m.Routes {
+		if strings.Contains(route.Description, "Descriptor") {
+			routePattern = route.Pattern
+			break
+		}
+	}
+
+	pathValues := getPathValues(req, routePattern)
+	registry := pathValues["registry"]
+	namespace := pathValues["namespace"]
+	repository := pathValues["repository"]
+	tag := pathValues["tag"]
 
 	// Get client
 	client, err := m.getClient(registry)
@@ -477,11 +497,21 @@ func (m *ApiManager) HandleDescriptor(w http.ResponseWriter, req *http.Request) 
 
 // HandleManifest handles the manifest endpoint for both default and registry-specific routes
 func (m *ApiManager) HandleManifest(w http.ResponseWriter, req *http.Request) {
-	// Extract parameters
-	registry := req.PathValue("registry")
-	namespace := req.PathValue("namespace")
-	repository := req.PathValue("repository")
-	tag := req.PathValue("tag")
+	// Get all path values using our helper function
+	routePattern := ""
+	for _, route := range m.Routes {
+		if strings.Contains(route.Description, "Manifest") {
+			routePattern = route.Pattern
+			break
+		}
+	}
+
+	pathValues := getPathValues(req, routePattern)
+	registry := pathValues["registry"]
+	namespace := pathValues["namespace"]
+	repository := pathValues["repository"]
+	tag := pathValues["tag"]
+
 	// Get client
 	client, err := m.getClient(registry)
 	if err != nil {
@@ -523,11 +553,20 @@ func (m *ApiManager) HandleManifest(w http.ResponseWriter, req *http.Request) {
 
 // HandleDownload handles the download endpoint for both default and registry-specific routes
 func (m *ApiManager) HandleDownload(w http.ResponseWriter, req *http.Request) {
-	// Extract parameters
-	registry := req.PathValue("registry")
-	namespace := req.PathValue("namespace")
-	repository := req.PathValue("repository")
-	tag := req.PathValue("tag")
+	// Get all path values using our helper function
+	routePattern := ""
+	for _, route := range m.Routes {
+		if strings.Contains(route.Description, "Download") {
+			routePattern = route.Pattern
+			break
+		}
+	}
+
+	pathValues := getPathValues(req, routePattern)
+	registry := pathValues["registry"]
+	namespace := pathValues["namespace"]
+	repository := pathValues["repository"]
+	tag := pathValues["tag"]
 
 	// Get client
 	client, err := m.getClient(registry)
@@ -599,5 +638,33 @@ func interpolatePattern(pattern string, params map[string]string) string {
 		placeholder := fmt.Sprintf("{%s}", key)
 		result = strings.ReplaceAll(result, placeholder, value)
 	}
+	return result
+}
+
+// getPathValues extracts all path variables from a request based on a route pattern
+func getPathValues(req *http.Request, pattern string) map[string]string {
+	result := make(map[string]string)
+
+	// Extract variable names from the pattern
+	parts := strings.Split(pattern, "/")
+	for _, part := range parts {
+		// Check if this part is a variable (starts with { and ends with })
+		if len(part) > 2 && part[0] == '{' && part[len(part)-1] == '}' {
+			// Extract variable name without braces
+			varName := part[1 : len(part)-1]
+
+			// Skip any suffix like {$}
+			if varName == "$" {
+				continue
+			}
+
+			// Get the value from the request
+			value := req.PathValue(varName)
+			if value != "" {
+				result[varName] = value
+			}
+		}
+	}
+
 	return result
 }
