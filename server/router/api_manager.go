@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/codekaizen-github/orashub/client"
+	"github.com/codekaizen-github/orashub/server/logger"
 	"github.com/codekaizen-github/orashub/server/policy"
 )
 
@@ -34,12 +35,14 @@ type ApiManager struct {
 	Templates   *template.Template
 	ImagePolicy *policy.ImagePolicy
 	Routes      []RouteDefinition
+	Logger      logger.Logger
 }
 
 // NewApiManager creates a new API manager with the given configuration
-func NewApiManager(config *policy.ConfigFile, imagePolicy *policy.ImagePolicy, templates *template.Template) *ApiManager {
+func NewApiManager(config *policy.ConfigFile, imagePolicy *policy.ImagePolicy, templates *template.Template, logger logger.Logger) *ApiManager {
 	// Check if there are any registries configured - this is a fatal error if not
 	if len(config.Registries) == 0 {
+		logger.Error("Fatal error: No registries configured. Please specify at least one registry in the configuration.")
 		log.Fatalf("Fatal error: No registries configured. Please specify at least one registry in the configuration.")
 	}
 
@@ -47,6 +50,7 @@ func NewApiManager(config *policy.ConfigFile, imagePolicy *policy.ImagePolicy, t
 		Clients:     make(map[string]client.ClientInterface),
 		ImagePolicy: imagePolicy,
 		Templates:   templates,
+		Logger:      logger,
 	}
 
 	// Create clients for each registry in the config
@@ -87,7 +91,7 @@ func (m *ApiManager) SetupRoutes(mux *http.ServeMux) {
 	// Register all routes from our routes data structure
 	for _, route := range m.Routes {
 		pattern := fmt.Sprintf("%s %s", route.Method, route.Pattern)
-		log.Printf("Registering route: %s", pattern)
+		m.Logger.Info("Registering route: %s", pattern)
 		mux.HandleFunc(pattern, route.Handler)
 	}
 
@@ -131,12 +135,12 @@ func (m *ApiManager) HandleRoot(w http.ResponseWriter, req *http.Request) {
 
 	if m.Templates != nil {
 		if err := m.Templates.ExecuteTemplate(w, "index.html", data); err != nil {
-			log.Printf("Error executing template: %v", err)
+			m.Logger.Error("Error executing template: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
 	} else {
 		// This should never happen as we always set up a template in main.go
-		log.Printf("Warning: No templates available")
+		m.Logger.Warn("No templates available")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
@@ -198,7 +202,7 @@ func (m *ApiManager) checkImagePolicy(w http.ResponseWriter, req *http.Request, 
 
 	// Registry should never be empty - this is a requirement
 	if registry == "" {
-		log.Printf("Error: Empty registry in checkImagePolicy")
+		m.Logger.Error("Empty registry in checkImagePolicy")
 		http.Error(w, "Registry is required for policy check", http.StatusBadRequest)
 		return false
 	}
@@ -208,22 +212,22 @@ func (m *ApiManager) checkImagePolicy(w http.ResponseWriter, req *http.Request, 
 	if strings.HasPrefix(namespace, registry+"/") {
 		// The namespace already contains the registry, don't duplicate
 		repositoryPath := fmt.Sprintf("%s/%s", namespace, repository)
-		log.Printf("Repository path for policy check: %s", repositoryPath)
+		m.Logger.Debug("Repository path for policy check: %s", repositoryPath)
 
 		// Check if the repository is allowed by policy
 		if !policy.IsAllowed(repositoryPath, m.ImagePolicy) {
-			log.Printf("Access denied to repository %s by policy", repositoryPath)
+			m.Logger.Warn("Access denied to repository %s by policy", repositoryPath)
 			http.Error(w, "Access to this repository is denied by policy", http.StatusForbidden)
 			return false
 		}
 	} else {
 		// Normal case, combine registry with namespace and repository
 		repositoryPath := fmt.Sprintf("%s/%s/%s", registry, namespace, repository)
-		log.Printf("Repository path for policy check: %s", repositoryPath)
+		m.Logger.Debug("Repository path for policy check: %s", repositoryPath)
 
 		// Check if the repository is allowed by policy
 		if !policy.IsAllowed(repositoryPath, m.ImagePolicy) {
-			log.Printf("Access denied to repository %s by policy", repositoryPath)
+			m.Logger.Warn("Access denied to repository %s by policy", repositoryPath)
 			http.Error(w, "Access to this repository is denied by policy", http.StatusForbidden)
 			return false
 		}
@@ -241,7 +245,7 @@ func (m *ApiManager) HandleListTags(w http.ResponseWriter, req *http.Request) {
 	repository := pathValues["repository"]
 
 	// Debug logging
-	log.Printf("HandleListTags called with registry=%s, namespace=%s, repository=%s", registry, namespace, repository)
+	m.Logger.Debug("HandleListTags called with registry=%s, namespace=%s, repository=%s", registry, namespace, repository)
 
 	// Get client
 	client, err := m.getClient(registry)
@@ -338,7 +342,7 @@ func (m *ApiManager) HandleResourceInfo(w http.ResponseWriter, req *http.Request
 		cleanRoutePattern := cleanPatternString(route.Pattern)
 
 		// log both
-		log.Printf("Checking route: %s against request pattern: %s", cleanRoutePattern, cleanRequestPattern)
+		m.Logger.Debug("Checking route: %s against request pattern: %s", cleanRoutePattern, cleanRequestPattern)
 
 		if strings.HasPrefix(cleanRoutePattern, cleanRequestPattern) {
 			// Create a key based on the description and store the relative URL
@@ -374,7 +378,7 @@ func (m *ApiManager) HandleDescriptor(w http.ResponseWriter, req *http.Request) 
 	tag := pathValues["tag"]
 
 	// Debug logging
-	log.Printf("HandleDescriptor called with registry=%s, namespace=%s, repository=%s, tag=%s",
+	m.Logger.Debug("HandleDescriptor called with registry=%s, namespace=%s, repository=%s, tag=%s",
 		registry, namespace, repository, tag)
 
 	// Get client
@@ -408,7 +412,7 @@ func (m *ApiManager) HandleDescriptor(w http.ResponseWriter, req *http.Request) 
 	}
 
 	// Log the description
-	log.Printf("Description for %s/%s:%s: %v", namespace, repository, tag, desc)
+	m.Logger.Info("Description for %s/%s:%s: %v", namespace, repository, tag, desc)
 
 	// Return response
 	w.Header().Set("Content-Type", "application/json")
@@ -502,12 +506,12 @@ func (m *ApiManager) HandleDownload(w http.ResponseWriter, req *http.Request) {
 	// Get layer info
 	layerInfo, err := client.GetFirstLayerReader(namespacedRepository, tag)
 	if err != nil {
-		log.Printf("Error getting first layer reader for %s/%s:%s: %v", namespace, repository, tag, err)
+		m.Logger.Error("Error getting first layer reader for %s/%s:%s: %v", namespace, repository, tag, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if layerInfo == nil {
-		log.Printf("No content found for %s/%s:%s", namespace, repository, tag)
+		m.Logger.Warn("No content found for %s/%s:%s", namespace, repository, tag)
 		http.Error(w, "no content found for the first layer", http.StatusNotFound)
 		return
 	}
@@ -520,13 +524,13 @@ func (m *ApiManager) HandleDownload(w http.ResponseWriter, req *http.Request) {
 	// Return content
 	w.WriteHeader(http.StatusOK)
 	if _, err := io.Copy(w, layerInfo); err != nil {
-		log.Printf("Error copying content to response: %v", err)
+		m.Logger.Error("Error copying content to response: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Close the content reader
 	if err := layerInfo.Close(); err != nil {
-		log.Printf("Error closing content reader: %v", err)
+		m.Logger.Error("Error closing content reader: %v", err)
 	}
 }
