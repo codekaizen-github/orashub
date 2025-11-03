@@ -516,17 +516,37 @@ func (m *ApiManager) HandleDownload(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Set headers
+	// Set headers for chunked transfer
 	w.Header().Set("Content-Type", layerInfo.GetMediaType())
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, layerInfo.GetFilename()))
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", layerInfo.GetSize()))
+	// Don't set Content-Length to enable chunked transfer encoding
+	w.Header().Set("Transfer-Encoding", "chunked")
 
-	// Return content
-	w.WriteHeader(http.StatusOK)
-	if _, err := io.Copy(w, layerInfo); err != nil {
-		m.Logger.Error("Error copying content to response: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	// Create a buffer for chunked reading
+	buffer := make([]byte, 32*1024) // 32KB chunks
+
+	// Stream the content in chunks
+	for {
+		n, err := layerInfo.Read(buffer)
+		if n > 0 {
+			// Write the chunk
+			if _, werr := w.Write(buffer[:n]); werr != nil {
+				m.Logger.Error("Error writing chunk to response: %v", werr)
+				return
+			}
+			// Flush the chunk immediately
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+		}
+
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			m.Logger.Error("Error reading content: %v", err)
+			return
+		}
 	}
 
 	// Close the content reader
