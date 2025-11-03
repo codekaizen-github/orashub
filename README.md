@@ -218,6 +218,16 @@ The API uses relative URLs for all endpoints, which makes it compatible with any
 - `GET /api/v1/{registry}/{namespace}/{repository}/{tag}/descriptor` - Get descriptor metadata
 - `GET /api/v1/{registry}/{namespace}/{repository}/{tag}/manifest` - Get manifest
 
+## Development
+
+### Start Development Server
+
+- Start the development container
+- Once attached to the container, start the application
+```bash
+go run server/main.go
+```
+
 ## License
 
 [MIT License](LICENSE)
