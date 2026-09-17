@@ -32,6 +32,8 @@ type RouteDefinition struct {
 // ApiManager manages the API routing and client interactions
 type ApiManager struct {
 	Clients     map[string]client.ClientInterface
+	Hostnames   map[string]string
+	Prefixes    map[string]string
 	Templates   *template.Template
 	ImagePolicy *policy.ImagePolicy
 	Routes      []RouteDefinition
@@ -48,6 +50,8 @@ func NewApiManager(config *policy.ConfigFile, imagePolicy *policy.ImagePolicy, t
 
 	manager := &ApiManager{
 		Clients:     make(map[string]client.ClientInterface),
+		Hostnames:   make(map[string]string),
+		Prefixes:    make(map[string]string),
 		ImagePolicy: imagePolicy,
 		Templates:   templates,
 		Logger:      logger,
@@ -55,16 +59,19 @@ func NewApiManager(config *policy.ConfigFile, imagePolicy *policy.ImagePolicy, t
 
 	// Create clients for each registry in the config
 	for _, registry := range config.Registries {
+		hostname := registry.EffectiveHostname()
 
-		// Create client for this registry
+		// Create client for this registry using the effective OCI hostname
 		apiClient := client.NewClient(
-			registry.Name,
+			hostname,
 			registry.Username,
 			registry.Password,
 		)
 
-		// Store client in map
+		// Store client keyed by API name/alias; track hostname and prefix for path resolution
 		manager.Clients[registry.Name] = apiClient
+		manager.Hostnames[registry.Name] = hostname
+		manager.Prefixes[registry.Name] = registry.Prefix
 	}
 
 	// Define routes after creating the manager so handlers can be properly bound
@@ -193,6 +200,21 @@ func (m *ApiManager) getAvailableRegistries() []string {
 	return registries
 }
 
+// repositoryPath builds the full OCI repository path for policy checks and client calls:
+// [prefix/]namespace/repository
+func (m *ApiManager) repositoryPath(registry, namespace, repository string) string {
+	return joinNonEmpty(m.Prefixes[registry], namespace, repository)
+}
+
+// policyRepositoryPath builds hostname/[prefix/]namespace/repository for allowlist matching
+func (m *ApiManager) policyRepositoryPath(registry, namespace, repository string) string {
+	hostname := m.Hostnames[registry]
+	if hostname == "" {
+		hostname = registry
+	}
+	return joinNonEmpty(hostname, m.Prefixes[registry], namespace, repository)
+}
+
 // checkImagePolicy checks if the requested repository is allowed by policy
 func (m *ApiManager) checkImagePolicy(w http.ResponseWriter, req *http.Request, registry, namespace, repository string) bool {
 	// If no policy is configured, allow all repositories
@@ -207,30 +229,24 @@ func (m *ApiManager) checkImagePolicy(w http.ResponseWriter, req *http.Request, 
 		return false
 	}
 
-	// Create repository path without the tag
-	// Important: Do NOT include the registry in the path again if it's already part of namespace
-	if strings.HasPrefix(namespace, registry+"/") {
-		// The namespace already contains the registry, don't duplicate
-		repositoryPath := fmt.Sprintf("%s/%s", namespace, repository)
-		m.Logger.Debug("Repository path for policy check: %s", repositoryPath)
+	hostname := m.Hostnames[registry]
+	if hostname == "" {
+		hostname = registry
+	}
 
-		// Check if the repository is allowed by policy
-		if !policy.IsAllowed(repositoryPath, m.ImagePolicy) {
-			m.Logger.Warn("Access denied to repository %s by policy", repositoryPath)
-			http.Error(w, "Access to this repository is denied by policy", http.StatusForbidden)
-			return false
-		}
+	var repositoryPath string
+	// Do NOT include the hostname in the path again if it's already part of namespace
+	if strings.HasPrefix(namespace, hostname+"/") {
+		repositoryPath = joinNonEmpty(namespace, repository)
 	} else {
-		// Normal case, combine registry with namespace and repository
-		repositoryPath := fmt.Sprintf("%s/%s/%s", registry, namespace, repository)
-		m.Logger.Debug("Repository path for policy check: %s", repositoryPath)
+		repositoryPath = m.policyRepositoryPath(registry, namespace, repository)
+	}
+	m.Logger.Debug("Repository path for policy check: %s", repositoryPath)
 
-		// Check if the repository is allowed by policy
-		if !policy.IsAllowed(repositoryPath, m.ImagePolicy) {
-			m.Logger.Warn("Access denied to repository %s by policy", repositoryPath)
-			http.Error(w, "Access to this repository is denied by policy", http.StatusForbidden)
-			return false
-		}
+	if !policy.IsAllowed(repositoryPath, m.ImagePolicy) {
+		m.Logger.Warn("Access denied to repository %s by policy", repositoryPath)
+		http.Error(w, "Access to this repository is denied by policy", http.StatusForbidden)
+		return false
 	}
 
 	return true
@@ -268,7 +284,7 @@ func (m *ApiManager) HandleListTags(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Build namespaced repository
-	namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
+	namespacedRepository := m.repositoryPath(registry, namespace, repository)
 
 	// Get tags
 	tags, err := client.ListTags(namespacedRepository)
@@ -402,7 +418,7 @@ func (m *ApiManager) HandleDescriptor(w http.ResponseWriter, req *http.Request) 
 	}
 
 	// Build namespaced repository
-	namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
+	namespacedRepository := m.repositoryPath(registry, namespace, repository)
 
 	// Get descriptor
 	desc, err := client.GetDescriptor(namespacedRepository, tag)
@@ -453,7 +469,7 @@ func (m *ApiManager) HandleManifest(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Build namespaced repository
-	namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
+	namespacedRepository := m.repositoryPath(registry, namespace, repository)
 
 	// Get manifest
 	content, err := client.GetManifest(namespacedRepository, tag)
@@ -501,7 +517,7 @@ func (m *ApiManager) HandleDownload(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Build namespaced repository
-	namespacedRepository := fmt.Sprintf("%s/%s", namespace, repository)
+	namespacedRepository := m.repositoryPath(registry, namespace, repository)
 
 	// Get layer info
 	layerInfo, err := client.GetFirstLayerReader(namespacedRepository, tag)

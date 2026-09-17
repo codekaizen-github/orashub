@@ -58,3 +58,14 @@ func interpolatePattern(pattern string, params map[string]string) string {
 	}
 	return result
 }
+
+// joinNonEmpty joins non-empty path segments with "/".
+func joinNonEmpty(parts ...string) string {
+	nonEmpty := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part != "" {
+			nonEmpty = append(nonEmpty, part)
+		}
+	}
+	return strings.Join(nonEmpty, "/")
+}
