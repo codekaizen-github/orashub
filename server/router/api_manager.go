@@ -208,11 +208,7 @@ func (m *ApiManager) repositoryPath(registry, namespace, repository string) stri
 
 // policyRepositoryPath builds hostname/[prefix/]namespace/repository for allowlist matching
 func (m *ApiManager) policyRepositoryPath(registry, namespace, repository string) string {
-	hostname := m.Hostnames[registry]
-	if hostname == "" {
-		hostname = registry
-	}
-	return joinNonEmpty(hostname, m.Prefixes[registry], namespace, repository)
+	return joinNonEmpty(m.Hostnames[registry], m.Prefixes[registry], namespace, repository)
 }
 
 // checkImagePolicy checks if the requested repository is allowed by policy
@@ -229,18 +225,7 @@ func (m *ApiManager) checkImagePolicy(w http.ResponseWriter, req *http.Request, 
 		return false
 	}
 
-	hostname := m.Hostnames[registry]
-	if hostname == "" {
-		hostname = registry
-	}
-
-	var repositoryPath string
-	// Do NOT include the hostname in the path again if it's already part of namespace
-	if strings.HasPrefix(namespace, hostname+"/") {
-		repositoryPath = joinNonEmpty(namespace, repository)
-	} else {
-		repositoryPath = m.policyRepositoryPath(registry, namespace, repository)
-	}
+	repositoryPath := m.policyRepositoryPath(registry, namespace, repository)
 	m.Logger.Debug("Repository path for policy check: %s", repositoryPath)
 
 	if !policy.IsAllowed(repositoryPath, m.ImagePolicy) {
