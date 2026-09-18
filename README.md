@@ -84,7 +84,9 @@ blocked_repositories: []  # Empty list means no repositories are explicitly bloc
 #### Configuration Sections
 
 - **registries**: List of container registries and their credentials
-  - **name**: Registry URL (e.g., `ghcr.io`)
+  - **name**: API path key / alias (e.g., `ghcr.io` or `route1`)
+  - **hostname**: Optional OCI registry host; if omitted, `name` is used
+  - **prefix**: Optional path prepended before `{namespace}/{repository}` (e.g., `project/gar-repo`); if omitted, empty
   - **username**: Username for authentication (supports environment variable substitution)
   - **password**: Password for authentication (supports environment variable substitution)
 

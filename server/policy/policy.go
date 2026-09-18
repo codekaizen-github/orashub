@@ -16,11 +16,25 @@ type ConfigFile struct {
 	BlockedRepositories []string              `yaml:"blocked_repositories"`
 }
 
-// RegistryCredentials represents the credentials for a registry
+// RegistryCredentials represents the credentials for a registry.
+// Name is the API path key (alias). Hostname and Prefix are optional:
+// if Hostname is unset, Name is used as the OCI registry host;
+// if Prefix is unset defaults empty string
 type RegistryCredentials struct {
 	Name     string `yaml:"name"`
+	Hostname string `yaml:"hostname,omitempty"`
+	Prefix   string `yaml:"prefix,omitempty"`
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
+}
+
+// EffectiveHostname returns the OCI registry host for this entry.
+// When Hostname is empty, Name is used.
+func (r RegistryCredentials) EffectiveHostname() string {
+	if r.Hostname != "" {
+		return r.Hostname
+	}
+	return r.Name
 }
 
 // ImagePolicy represents the allowed and blocked repositories
